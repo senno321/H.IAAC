@@ -1,0 +1,512 @@
+{
+  "1": {
+    "round": 1,
+    "num_participants": 2,
+    "per_client": {
+      "2257573903330864735": {
+        "train_duration": 11.974880933761597,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "917398380571114404": {
+        "train_duration": 12.144768953323364,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 24.11964988708496,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 12.05982494354248,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "2": {
+    "round": 2,
+    "num_participants": 2,
+    "per_client": {
+      "6646009866330702076": {
+        "train_duration": 10.627150535583496,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "15883108418460068012": {
+        "train_duration": 10.842914581298828,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 21.470065116882324,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 10.735032558441162,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "3": {
+    "round": 3,
+    "num_participants": 2,
+    "per_client": {
+      "6646009866330702076": {
+        "train_duration": 9.020682573318481,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "917398380571114404": {
+        "train_duration": 9.042957305908203,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 18.063639879226685,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 9.031819939613342,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "4": {
+    "round": 4,
+    "num_participants": 2,
+    "per_client": {
+      "917398380571114404": {
+        "train_duration": 10.126039981842041,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "15883108418460068012": {
+        "train_duration": 9.764082193374634,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 19.890122175216675,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 9.945061087608337,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "5": {
+    "round": 5,
+    "num_participants": 2,
+    "per_client": {
+      "8681722817067133400": {
+        "train_duration": 8.623793840408325,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "15883108418460068012": {
+        "train_duration": 8.748322010040283,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 17.37211585044861,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.686057925224304,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "6": {
+    "round": 6,
+    "num_participants": 2,
+    "per_client": {
+      "917398380571114404": {
+        "train_duration": 8.883141994476318,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "2257573903330864735": {
+        "train_duration": 8.850215196609497,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 17.733357191085815,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.866678595542908,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "7": {
+    "round": 7,
+    "num_participants": 2,
+    "per_client": {
+      "6646009866330702076": {
+        "train_duration": 8.37609338760376,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "917398380571114404": {
+        "train_duration": 8.370790958404541,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 16.7468843460083,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.37344217300415,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "8": {
+    "round": 8,
+    "num_participants": 2,
+    "per_client": {
+      "2257573903330864735": {
+        "train_duration": 8.725746154785156,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "15883108418460068012": {
+        "train_duration": 8.78333568572998,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 17.509081840515137,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.754540920257568,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "9": {
+    "round": 9,
+    "num_participants": 2,
+    "per_client": {
+      "917398380571114404": {
+        "train_duration": 8.64722728729248,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "6646009866330702076": {
+        "train_duration": 8.530086040496826,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 17.177313327789307,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.588656663894653,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "10": {
+    "round": 10,
+    "num_participants": 2,
+    "per_client": {
+      "8681722817067133400": {
+        "train_duration": 8.531482934951782,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "15883108418460068012": {
+        "train_duration": 8.319041013717651,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 16.850523948669434,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.425261974334717,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "11": {
+    "round": 11,
+    "num_participants": 2,
+    "per_client": {
+      "459675207278935800": {
+        "train_duration": 8.730478286743164,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "11789867891379905222": {
+        "train_duration": 8.494225025177002,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 17.224703311920166,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.612351655960083,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "12": {
+    "round": 12,
+    "num_participants": 2,
+    "per_client": {
+      "1049087382713047271": {
+        "train_duration": 9.112452745437622,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "9560238996415143112": {
+        "train_duration": 9.440833806991577,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 18.5532865524292,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 9.2766432762146,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "13": {
+    "round": 13,
+    "num_participants": 2,
+    "per_client": {
+      "10908671852319776849": {
+        "train_duration": 8.551116228103638,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "1049087382713047271": {
+        "train_duration": 8.496985912322998,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 17.048102140426636,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.524051070213318,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "14": {
+    "round": 14,
+    "num_participants": 2,
+    "per_client": {
+      "9560238996415143112": {
+        "train_duration": 8.045447826385498,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "10908671852319776849": {
+        "train_duration": 8.498068571090698,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 16.543516397476196,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.271758198738098,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  },
+  "15": {
+    "round": 15,
+    "num_participants": 2,
+    "per_client": {
+      "11789867891379905222": {
+        "train_duration": 8.256089210510254,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      },
+      "1049087382713047271": {
+        "train_duration": 8.405837059020996,
+        "est_proc_time_ms": 400000.0,
+        "est_comm_time_ms": 396.8384,
+        "est_comm_energy_mJ": 1984.192,
+        "model_bits": 1984192.0
+      }
+    },
+    "round_sum": {
+      "train_duration": 16.66192626953125,
+      "est_proc_time_ms": 800000.0,
+      "est_comm_time_ms": 793.6768,
+      "est_comm_energy_mJ": 3968.384,
+      "model_bits": 3968384.0
+    },
+    "round_avg": {
+      "train_duration_avg": 8.330963134765625,
+      "est_proc_time_ms_avg": 400000.0,
+      "est_comm_time_ms_avg": 396.8384,
+      "est_comm_energy_mJ_avg": 1984.192,
+      "model_bits_avg": 1984192.0
+    }
+  }
+}
