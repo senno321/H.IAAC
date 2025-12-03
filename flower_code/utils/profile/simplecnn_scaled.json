@@ -1,0 +1,34 @@
+{
+  "JetsonAGXOrin": {
+    "training_ms": 0.936640473789349,
+    "evaluation_ms": 3.718549583333333,
+    "training_mJ": 12.02595451266724,
+    "evaluation_mJ": 41.55162701749999,
+    "idle_mJ": 7.3,
+    "max_battery_mJ": 432000000.0
+  },
+  "JetsonOrinNano": {
+    "training_ms": 1.1396903000884837,
+    "evaluation_ms": 4.176692500000001,
+    "training_mJ": 9.966796596534213,
+    "evaluation_mJ": 34.07212720416668,
+    "idle_mJ": 5.09,
+    "max_battery_mJ": 432000000.0
+  },
+  "LattePandaDelta3": {
+    "training_ms": 5.6902582251431175,
+    "evaluation_ms": 14.246656250000001,
+    "training_mJ": 74.52907900112385,
+    "evaluation_mJ": 156.56576357083307,
+    "idle_mJ": 6.87,
+    "max_battery_mJ": 432000000.0
+  },
+  "OrangePi5B": {
+    "training_ms": 7.3982353255790505,
+    "evaluation_ms": 17.544625,
+    "training_mJ": 59.20778547721363,
+    "evaluation_mJ": 113.15515602708335,
+    "idle_mJ": 3.32,
+    "max_battery_mJ": 432000000.0
+  }
+}

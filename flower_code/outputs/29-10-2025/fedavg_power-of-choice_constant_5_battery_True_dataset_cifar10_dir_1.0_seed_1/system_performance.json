@@ -1,0 +1,23 @@
+{
+  "2": {
+    "total_mJ": 2201927.1532078884,
+    "total_ceq": 0.2586227408593253,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  },
+  "3": {
+    "total_mJ": 3045474.401947364,
+    "total_ceq": 0.40825924391793,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  },
+  "4": {
+    "total_mJ": 2670761.7349955337,
+    "total_ceq": 0.3499035350222596,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  }
+}
