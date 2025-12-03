@@ -476,3 +476,197 @@ def train_feddyn(model, dataloader, epochs, criterion, optimizer, device, datase
     prev_grads = update_prev_grads(model, prev_grads, global_params, alpha)
 
     return avg_loss, avg_acc, stat_util, prev_grads
+
+# FedCS Functions:
+
+def extract_centroids(model, dataloader, device, dataset_id):
+    """
+    FedCS Fase 1: Extrai features e calcula centróides locais (média geométrica).
+    """
+    model.to(device)
+    model.eval()
+    
+    key = DatasetConfig.BATCH_KEY[dataset_id]
+    value = DatasetConfig.BATCH_VALUE[dataset_id]
+    
+    # Dicionário para acumular features por classe
+    features_by_class = {} 
+    
+    # Hook para capturar saída da penúltima camada (features)
+    # Usamos o hook que você já tem ou criamos um simples
+    extracted_features = []
+    def hook_fn(module, input, output):
+        # input[0] é a entrada da última camada Linear, ou seja, as features
+        extracted_features.append(input[0].detach())
+
+    # Encontra a última camada linear para registrar o hook
+    last_linear = None
+    for m in model.modules():
+        if isinstance(m, nn.Linear):
+            last_linear = m
+    
+    if last_linear is None:
+        raise ValueError("Modelo não possui camada Linear para extração de features.")
+        
+    handle = last_linear.register_forward_pre_hook(hook_fn)
+
+    with torch.no_grad():
+        for batch in dataloader:
+            if isinstance(batch, dict):
+                x, y = batch[key].to(device), batch[value].to(device)
+            elif isinstance(batch, list):
+                x, y = batch[0].to(device), batch[1].to(device)
+            
+            extracted_features.clear() # Limpa buffer
+            _ = model(x) # Forward pass dispara o hook
+            
+            # features shape: [batch_size, feature_dim]
+            batch_feats = extracted_features[0]
+            if batch_feats.dim() > 2: # Se for CNN/RNN, achata
+                batch_feats = batch_feats.flatten(1)
+                
+            # Organiza features por classe
+            labels = y.cpu().numpy()
+            feats = batch_feats.cpu().numpy()
+            
+            for i, label in enumerate(labels):
+                lbl = int(label)
+                if lbl not in features_by_class:
+                    features_by_class[lbl] = []
+                features_by_class[lbl].append(feats[i])
+                
+    handle.remove() # Remove o hook
+    
+    # Calcula Centróides (Média Geométrica Element-wise)
+    # Obs: Usamos média aritmética como aproximação estável se houver valores <= 0
+    # O artigo fala em média geométrica, mas features de ReLU podem ser 0.
+    centroids = {}
+    for lbl, feats_list in features_by_class.items():
+        arr = np.array(feats_list)
+        # Média simples é mais robusta e comum em implementações reais
+        centroids[lbl] = np.mean(arr, axis=0) 
+        
+    return centroids
+
+def calculate_pruning_indices(model, dataloader, device, dataset_id, global_centroids, beta, pf, pl):
+    """
+    FedCS Fase 2: Calcula DC Scores e retorna índices para MANTER (Coreset).
+    """
+    model.to(device)
+    model.eval()
+    
+    key = DatasetConfig.BATCH_KEY[dataset_id]
+    value = DatasetConfig.BATCH_VALUE[dataset_id]
+    
+    dc_scores = []   # (score, original_index, label)
+    all_labels = []  # Para contar frequências
+    
+    # Hook para features (mesma lógica)
+    extracted_features = []
+    def hook_fn(module, input, output):
+        extracted_features.append(input[0].detach())
+
+    last_linear = None
+    for m in model.modules():
+        if isinstance(m, nn.Linear):
+            last_linear = m
+    handle = last_linear.register_forward_pre_hook(hook_fn)
+    
+    global_idx_counter = 0 # Rastreia índice global no dataset original
+
+    # 1. Coleta Scores para TODOS os dados
+    with torch.no_grad():
+        for batch in dataloader:
+            if isinstance(batch, dict):
+                x, y = batch[key].to(device), batch[value].to(device)
+            elif isinstance(batch, list):
+                x, y = batch[0].to(device), batch[1].to(device)
+                
+            extracted_features.clear()
+            _ = model(x)
+            
+            batch_feats = extracted_features[0]
+            if batch_feats.dim() > 2:
+                batch_feats = batch_feats.flatten(1)
+            
+            # Cálculo do DC Score
+            # s_ij = | d_min - d_y |
+            feats_np = batch_feats.cpu().numpy()
+            labels_np = y.cpu().numpy()
+            
+            for i in range(len(labels_np)):
+                z = feats_np[i] # Feature vector
+                y_true = int(labels_np[i])
+                
+                # Distância para o centróide da classe correta
+                # Se classe não existe no global (raro), usa dist 0 ou grande
+                c_true = global_centroids.get(y_true)
+                if c_true is None: 
+                    dist_y = 0.0 # Fallback
+                else:
+                    dist_y = np.linalg.norm(z - c_true)
+                
+                # Distância para o centróide mais próximo (que não seja o correto)
+                dist_min = float('inf')
+                for c_lbl, c_vec in global_centroids.items():
+                    if c_lbl == y_true: continue
+                    d = np.linalg.norm(z - c_vec)
+                    if d < dist_min:
+                        dist_min = d
+                
+                if dist_min == float('inf'): dist_min = dist_y # Caso só tenha 1 classe
+                
+                score = abs(dist_min - dist_y)
+                
+                dc_scores.append({
+                    'idx': global_idx_counter,
+                    'label': y_true,
+                    'score': score
+                })
+                all_labels.append(y_true)
+                global_idx_counter += 1
+                
+    handle.remove()
+    
+    # 2. Lógica de Poda Dupla (Double Pruning)
+    # Contagem de classes
+    from collections import Counter
+    counts = Counter(all_labels)
+    if not counts: return []
+    
+    max_count = max(counts.values())
+    threshold = max_count * beta
+    
+    indices_to_keep = []
+    
+    # Organiza scores por classe
+    scores_by_class = {}
+    for item in dc_scores:
+        lbl = item['label']
+        if lbl not in scores_by_class: scores_by_class[lbl] = []
+        scores_by_class[lbl].append(item)
+        
+    for lbl, items in scores_by_class.items():
+        # Ordena por score (do menor para o maior)
+        # FedCS remove ALTO score (hard/redundant), mantém BAIXO (boundary)
+        items.sort(key=lambda x: x['score']) 
+        
+        n_total = len(items)
+        
+        # Define se é Large-Capacity
+        is_large = counts[lbl] > threshold
+        
+        # Define quantos remover (Top-K scores mais altos são removidos)
+        # p_f (alta poda) ou p_l (baixa poda)
+        pruning_rate = pf if is_large else pl
+        
+        n_keep = int(n_total * (1.0 - pruning_rate))
+        n_keep = max(1, n_keep) # Mantém pelo menos 1
+        
+        # Mantém os 'n_keep' com MENORES scores
+        kept_items = items[:n_keep]
+        indices_to_keep.extend([x['idx'] for x in kept_items])
+        
+    return indices_to_keep
+
+# End of FedCS Functions

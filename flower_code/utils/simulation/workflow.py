@@ -310,6 +310,33 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     on_eval_config_fn=on_eval_config_fn,
                     evaluate_fn=evaluate_fn
                 )
+        elif selection_name == "fedcs":
+            if participants_name == "constant":
+                # Valores padrão se não estiverem no config
+                pretrain_rounds = int(context.run_config.get("pretrain-rounds", 5))
+                beta = float(context.run_config.get("beta", 0.65))
+                pf = float(context.run_config.get("pf", 0.5))
+                pl = float(context.run_config.get("pl", 0.2))
+
+                strategy = FedCSRandomConstant(
+                    repr="FedCSRandomConstant",
+                    pretrain_rounds=pretrain_rounds,
+                    beta=beta,
+                    pf=pf,
+                    pl=pl,
+                    # --- Argumentos Obrigatórios herdados de FedAvgRandomConstant ---
+                    num_clients=num_clients,
+                    profiles=profiles,
+                    num_participants=num_participants,
+                    num_evaluators=num_evaluators,
+                    context=context,
+                    initial_parameters=initial_parameters,
+                    fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+                    evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
+                    on_fit_config_fn=on_fit_config_fn,
+                    on_eval_config_fn=on_eval_config_fn,
+                    evaluate_fn=evaluate_fn
+                )
     return strategy
 
 
