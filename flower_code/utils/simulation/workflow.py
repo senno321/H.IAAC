@@ -14,6 +14,7 @@ from server.strategy.fedavg_random_recombination import FedAvgRandomRecombinatio
 from server.strategy.fedavg_power_of_choice import FedAvgPowerOfChoice
 from server.strategy.fedavg_divfl_constant import FedAvgDivflConstant
 from server.strategy.fedavg_random_feddyn import FedAvgRandomFedDyn
+from server.strategy.fedcs_strategy import FedCSRandomConstant
 
 from utils.dataset.partition import DatasetFactory
 from utils.model.manipulation import ModelPersistence, get_weights, set_weights, test
