@@ -12,6 +12,8 @@ dependencies = [
     "flwr-datasets[vision]>=0.5.0",
     "torch>=2.5.1",
     "torchvision>=0.20.1",
+    "datasets",
+    "numpy",
 ]
 
 [tool.hatch.build.targets.wheel]

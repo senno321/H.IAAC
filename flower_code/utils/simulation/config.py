@@ -76,6 +76,12 @@ class ConfigRepository:
         cfg.setdefault("num-participants-bcp", 10)
         cfg.setdefault("num-participants-acp", 10)
 
+        #fedcs
+        cfg.setdefault("pretrain-rounds", 5)
+        cfg.setdefault("beta", 0.65)
+        cfg.setdefault("pf", 0.5)
+        cfg.setdefault("pl", 0.2)
+
         # client
         cfg.setdefault("battery-threshold", 0.1)
 
@@ -114,6 +120,16 @@ class ConfigRepository:
 
         # client
         cfg["battery-threshold"] = float(cfg["battery-threshold"])
+
+        #fedcs
+        if "pretrain-rounds" in cfg:
+            cfg["pretrain-rounds"] = int(cfg["pretrain-rounds"])
+        if "beta" in cfg:
+            cfg["beta"] = float(cfg["beta"])
+        if "pf" in cfg:
+            cfg["pf"] = float(cfg["pf"])
+        if "pl" in cfg:
+            cfg["pl"] = float(cfg["pl"])
 
         return cfg
 

@@ -1,0 +1,15 @@
+# Ambiente virtual
+venv/
+
+# Arquivos gerados pelo Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Variáveis de ambiente / segredos
+.env
+
+# Arquivos temporários
+*.log
+*.tmp
+.DS_Store

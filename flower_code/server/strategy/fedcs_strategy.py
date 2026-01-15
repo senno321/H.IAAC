@@ -1,113 +1,135 @@
-import numpy as np
+import logging
 import pickle
-from flwr.common import Parameters, FitRes, FitIns, Scalar, ndarrays_to_parameters, parameters_to_ndarrays
-from flwr.server.client_proxy import ClientProxy
-from typing import List, Tuple, Dict, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-# Herda da sua estratégia base
-from .fedavg_random_constant import FedAvgRandomConstant
+import numpy as np
+from flwr.common import (
+    FitRes,
+    Parameters,
+    Scalar,
+    parameters_to_ndarrays,
+)
+from flwr.server.client_proxy import ClientProxy
+
+# Estratégia base do projeto
+from server.strategy.fedavg_random_constant import FedAvgRandomConstant
+
+log = logging.getLogger(__name__)
 
 class FedCSRandomConstant(FedAvgRandomConstant):
-    """
-    Estratégia FedCS que orquestra as fases de Poda.
-    """
-    def __init__(self, pretrain_rounds=5, beta=0.65, pf=0.5, pl=0.2, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        pretrain_rounds: int = 5,
+        beta: float = 0.65,
+        pf: float = 0.5,
+        pl: float = 0.2,
+        **kwargs,
+    ):
+        """
+        Estratégia FedCS que gerencia as fases de Seleção e Poda.
+        Recebe os hiperparâmetros definidos no workflow.py.
+        """
+        super().__init__(**kwargs)
         self.pretrain_rounds = pretrain_rounds
         self.beta = beta
         self.pf = pf
         self.pl = pl
         
-        # Estado do FedCS
-        self.global_centroids = {} # {label: centroid_vector}
-        self.cached_global_model = None # Para restaurar após fase de centróides
+        self.global_class_centers = None
+        self.last_weights = None 
 
-    def _do_configure_fit(self, server_round: int, parameters: Parameters, client_manager) -> List[Tuple[ClientProxy, FitIns]]:
+    def configure_fit(
+        self, server_round: int, parameters: Parameters, client_manager
+    ) -> List[Tuple[ClientProxy, FitRes]]:
         
-        # Determina a fase atual
-        phase = "training"
-        config_add = {}
-        
+        # Define a fase atual baseada no round
+        phase = "pretrain"
         if server_round <= self.pretrain_rounds:
-            phase = "training" # Fase 1
-        
+            phase = "pretrain"
         elif server_round == self.pretrain_rounds + 1:
-            phase = "extract_centroids" # Fase 2
-            # Salva o modelo global para não perdê-lo (pois aggregate vai receber centróides)
-            self.cached_global_model = parameters
-            
+            phase = "selection"
         elif server_round == self.pretrain_rounds + 2:
-            phase = "pruning" # Fase 3
-            # Envia os centróides globais calculados na rodada anterior
-            # Serializa via Pickle para passar no config
-            centroids_bytes = pickle.dumps(self.global_centroids)
-            config_add = {
-                "beta": self.beta,
-                "pf": self.pf,
-                "pl": self.pl,
-                "global_centroids": centroids_bytes
-            }
-            # Restaura o modelo global para enviar aos clientes (pois a rodada anterior retornou centróides)
-            if self.cached_global_model:
-                parameters = self.cached_global_model
-        
+            phase = "pruning"
         else:
-            phase = "training" # Fase 4 (Coreset Training)
+            phase = "fine_tuning"
 
-        # Chama a configuração base
-        fit_ins_list = super()._do_configure_fit(server_round, parameters, client_manager)
-        
-        # Injeta a fase e configs extras
-        new_list = []
-        for client, fit_ins in fit_ins_list:
-            fit_ins.config["fedcs_phase"] = phase
-            fit_ins.config.update(config_add)
-            new_list.append((client, fit_ins))
-            
-        return new_list
+        log.info(f"FedCS Round {server_round}: Entering phase '{phase}'")
 
-    def _do_aggregate_fit(self, server_round, results, failures):
+        # Configuração base enviada aos clientes
+        config = {
+            "phase": phase,
+            "current_round": server_round,
+            # Passamos os hiperparâmetros para o cliente usar na poda
+            "beta": self.beta,
+            "pf": self.pf,
+            "pl": self.pl,
+        }
+
+        # Na fase de Poda, enviamos os Centros Globais
+        if phase == "pruning" and self.global_class_centers is not None:
+            config["global_centers"] = pickle.dumps(self.global_class_centers)
+
+        # Chama o configure_fit da classe mãe para selecionar clientes
+        client_instructions = super().configure_fit(server_round, parameters, client_manager)
+
+        # Injeta a configuração customizada
+        new_instructions = []
+        for client_proxy, fit_ins in client_instructions:
+            fit_ins.config.update(config)
+            new_instructions.append((client_proxy, fit_ins))
+
+        return new_instructions
+
+    def aggregate_fit(
+        self,
+        server_round: int,
+        results: List[Tuple[ClientProxy, FitRes]],
+        failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         
-        # Se for fase de extração, agregação é especial (Mediana de Centróides)
+        # Fase de Seleção: Agrega Centros de Classe
         if server_round == self.pretrain_rounds + 1:
-            if not results: return None, {}
+            log.info("FedCS: Aggregating Class Centers (Selection Phase)")
             
-            # Coleta todos os centróides recebidos
-            # results -> list of (client, FitRes)
-            # FitRes.parameters contém os centróides
-            # FitRes.metrics["present_labels"] diz quais classes são
-            
-            all_centroids_by_class = {} # {label: [list of vectors]}
-            
+            all_local_centers = []
             for _, fit_res in results:
-                # parameters_to_ndarrays retorna lista de arrays [c1, c2, c3...]
-                client_centroids = parameters_to_ndarrays(fit_res.parameters)
-                present_labels = fit_res.metrics["present_labels"]
-                
-                for lbl, vec in zip(present_labels, client_centroids):
-                    if lbl not in all_centroids_by_class:
-                        all_centroids_by_class[lbl] = []
-                    all_centroids_by_class[lbl].append(vec)
-            
-            # Calcula Mediana Global (Agregação FedCS)
-            self.global_centroids = {}
-            for lbl, vec_list in all_centroids_by_class.items():
-                # Stack para [N_clients, feature_dim]
-                mat = np.stack(vec_list)
-                # Mediana por dimensão
-                median_vec = np.median(mat, axis=0)
-                self.global_centroids[lbl] = median_vec
-            
-            # Retorna o modelo ANTIGO (cached), pois não houve treino nesta rodada
-            # O Flower precisa de Parameters retornados
-            return self.cached_global_model, {}
+                if "local_centers" in fit_res.metrics:
+                    try:
+                        centers = pickle.loads(fit_res.metrics["local_centers"])
+                        all_local_centers.append(centers)
+                    except Exception as e:
+                        log.error(f"Error deserializing centers: {e}")
 
-        else:
-            # Agregação normal (FedAvg) nas outras fases
-            res = super()._do_aggregate_fit(server_round, results, failures)
-            
-            # Atualiza o cache se houver um novo modelo válido
-            if res[0] is not None:
-                self.cached_global_model = res[0]
-                
-            return res
+            if not all_local_centers:
+                log.warning("FedCS: No class centers received! Skipping aggregation.")
+                # Retorna pesos anteriores para não quebrar o loop
+                return self.last_weights, {}
+
+            # Agrupa por classe
+            centers_per_class = {}
+            for client_centers in all_local_centers:
+                for cls, center_vec in client_centers.items():
+                    if cls not in centers_per_class:
+                        centers_per_class[cls] = []
+                    centers_per_class[cls].append(center_vec)
+
+            # Calcula mediana global
+            global_centers = {}
+            for cls, vectors in centers_per_class.items():
+                stacked_vectors = np.stack(vectors)
+                global_centers[cls] = np.median(stacked_vectors, axis=0)
+
+            self.global_class_centers = global_centers
+            log.info(f"FedCS: Global centers computed for {len(global_centers)} classes.")
+
+            # Retorna pesos anteriores (sem atualização nesta rodada)
+            return self.last_weights, {}
+        
+        # Fases normais: Agregação padrão (FedAvg)
+        aggregated_parameters, metrics = super().aggregate_fit(server_round, results, failures)
+        
+        # Salva pesos atuais
+        if aggregated_parameters:
+            self.last_weights = aggregated_parameters
+
+        return aggregated_parameters, metrics

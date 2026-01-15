@@ -1,0 +1,30 @@
+{
+  "2": {
+    "total_mJ": 2508880.0326970136,
+    "total_ceq": 0.30464182827058894,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  },
+  "3": {
+    "total_mJ": 2851142.3018632876,
+    "total_ceq": 0.37671344299612136,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  },
+  "4": {
+    "total_mJ": 2770582.5381039614,
+    "total_ceq": 0.3469412103523645,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  },
+  "5": {
+    "total_mJ": 3118929.869822415,
+    "total_ceq": 0.4037368316640401,
+    "num_expired_thresh": 0,
+    "num_depleted": 0,
+    "num_transmited_bytes": 11905152
+  }
+}
