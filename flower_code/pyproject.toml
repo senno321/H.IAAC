@@ -96,7 +96,7 @@ participants-name = "constant"
 selection-name = "fedcs"
 
 num-clients = 10 #shakespeare:903 cifar10:100 speech_commands:2112
-num-rounds = 5 #100
+num-rounds = 15 #100
 num-participants = 5 #shakespeare:0.05 cifar10:0.1 speech_commands:0.025
 num-evaluators = 5
 num-candidates = 5
@@ -121,7 +121,7 @@ alpha-coef = 0.01
 
 #FedCS
 # *selection-name = "fedcs" 
-pretrain-rounds = 5      # Número de rodadas normais antes da extração de centróides
+pretrain-rounds = 4      # Número de rodadas normais antes da extração de centróides
 beta = 0.65              # Limiar para considerar uma classe como "Large-Capacity"
 pf = 0.5                 # Taxa de poda alta (para classes grandes)
 pl = 0.2                 # Taxa de poda baixa (para classes pequenas/restantes)

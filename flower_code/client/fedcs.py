@@ -5,73 +5,72 @@ import pickle
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist 
 
 from flwr.common import FitRes, Parameters, Status, Code
-from client.base import FlowerClient
+from client.base import BaseClient 
+from utils.model.manipulation import set_weights 
 
 log = logging.getLogger(__name__)
 
-class FedCSClient(FlowerClient):
+class FedCSClient(BaseClient):
     """
     Cliente compatível com FedCS que implementa extração de features e poda de dataset.
     """
 
-    def fit(self, parameters: Parameters, config: dict) -> FitRes:
-        # Carrega os pesos no modelo (método da classe base)
-        self.set_parameters(parameters)
+    def __init__(self, cid, flwr_cid, model, dataloader, dataset_id):
+        super().__init__(cid=cid, flwr_cid=flwr_cid, model=model, dataloader=dataloader, dataset_id=dataset_id)
+        # Define o device (CUDA ou CPU) internamente
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    def fit(self, parameters, config):
+        """
+        Método fit sobrescrito. Retorna tupla compatível com NumPyClient.
+        """
+        # Carrega os pesos no modelo
+        set_weights(self.model, parameters)
 
         phase = config.get("phase", "pretrain")
         log.info(f"Client {self.cid}: Starting fit phase '{phase}'")
 
-        # Variáveis de retorno
         metrics = {}
         
-        # --- FASE 1: Pré-treino (Treino normal) ---
+        # --- FASE 1: Pré-treino ---
         if phase == "pretrain":
             return super().fit(parameters, config)
 
-        # --- FASE 2: Seleção (Extração de Centros) ---
+        # --- FASE 2: Seleção (Calcula Centros) ---
         elif phase == "selection":
-            # Extrair features e calcular média por classe
-            local_centers = self._calculate_local_centers()
-            
-            # Serializa para enviar via metrics
-            metrics["local_centers"] = pickle.dumps(local_centers)
-            
-            # Retorna pesos inalterados, pois não houve treino
-            return FitRes(
-                status=Status(code=Code.OK, message="Centers computed"),
-                parameters=parameters,
-                num_examples=len(self.trainloader.dataset),
-                metrics=metrics,
-            )
+            try:
+                local_centers = self._calculate_local_centers()
+                metrics["local_centers"] = pickle.dumps(local_centers)
+                status_msg = "Centers computed"
+            except Exception as e:
+                log.error(f"Error computing centers: {e}")
+                status_msg = str(e)
+                # Mesmo com erro, retornamos algo para não quebrar o server
+                metrics["local_centers"] = pickle.dumps({})
+
+            # Retorna pesos inalterados, contagem e métricas
+            return parameters, len(self.dataloader.dataset), metrics
 
         # --- FASE 3: Poda (Pruning) ---
         elif phase == "pruning":
             if "global_centers" not in config:
                 log.error("Global centers not found in config during pruning phase!")
-                return super().fit(parameters, config) # Fallback
+                return super().fit(parameters, config)
 
-            # Deserializa centros globais
-            global_centers_bytes = config["global_centers"]
-            # O flower as vezes envia como string representando bytes, dependendo da versão
-            if isinstance(global_centers_bytes, str):
-                 # Se vier como string hex ou similar, ajustar aqui. 
-                 # Geralmente 'bytes' chegam ok se o config permitir.
-                 pass 
-
-            global_centers = pickle.loads(global_centers_bytes)
+            try:
+                global_centers = pickle.loads(config["global_centers"])
+                self._prune_dataset(global_centers)
+            except Exception as e:
+                log.error(f"Error processing global centers or pruning: {e}")
             
-            # Executa a lógica de poda do FedCS
-            self._prune_dataset(global_centers)
-            
-            # Treina (geralmente 1 época ou padrão) no dataset reduzido
+            # Treina no dataset reduzido
             return super().fit(parameters, config)
 
-        # --- FASE 4: Fine-Tuning (Treino no dataset podado) ---
+        # --- FASE 4: Fine-Tuning ---
         elif phase == "fine_tuning":
-            # O dataset já está podado (self.trainloader foi alterado na fase anterior)
             return super().fit(parameters, config)
             
         return super().fit(parameters, config)
@@ -79,7 +78,7 @@ class FedCSClient(FlowerClient):
     def _get_features_and_labels(self):
         """
         Roda inferência no dataset local e extrai (features, labels).
-        Usa um Hook na penúltima camada.
+        Robustez adicionada para lidar com Dataloaders que retornam dicts.
         """
         self.model.eval()
         self.model.to(self.device)
@@ -87,8 +86,6 @@ class FedCSClient(FlowerClient):
         features_list = []
         labels_list = []
 
-        # Hook para capturar entrada da última camada (fc/classifier)
-        # Tenta identificar o nome da última camada linear
         last_layer_name = None
         for name, module in self.model.named_modules():
             if isinstance(module, torch.nn.Linear):
@@ -97,152 +94,150 @@ class FedCSClient(FlowerClient):
         activation = {}
         def get_activation(name):
             def hook(model, input, output):
-                # Input da camada linear é a feature (flattened)
                 activation[name] = input[0].detach() 
             return hook
 
-        # Registra o hook na última camada linear encontrada
-        handle = dict(self.model.named_modules())[last_layer_name].register_forward_hook(get_activation(last_layer_name))
+        handle = None
+        if last_layer_name:
+            handle = dict(self.model.named_modules())[last_layer_name].register_forward_hook(get_activation(last_layer_name))
+        else:
+            log.warning("FedCS: Could not find Linear layer for hook.")
+            return np.array([]), np.array([])
 
         with torch.no_grad():
-            for batch in self.trainloader:
-                # Ajuste conforme seu dataloader (X, y) ou (X, y, ...)
-                inputs, labels = batch[0], batch[1]
+            for batch in self.dataloader:
+                # --- CORREÇÃO DE BATCH ---
+                # Detecta se é Dict (HuggingFace) ou Tupla/Lista (PyTorch padrão)
+                if isinstance(batch, dict):
+                    # Tenta chaves comuns usadas pelo HuggingFace/FlowerDatasets
+                    if "img" in batch:
+                        inputs = batch["img"]
+                    elif "image" in batch:
+                        inputs = batch["image"]
+                    else:
+                        inputs = list(batch.values())[0] # Fallback
+
+                    if "label" in batch:
+                        labels = batch["label"]
+                    elif "labels" in batch:
+                        labels = batch["labels"]
+                    else:
+                        labels = list(batch.values())[1] # Fallback
+                else:
+                    # Assume Tupla ou Lista [inputs, labels]
+                    inputs, labels = batch[0], batch[1]
+
                 inputs = inputs.to(self.device)
                 
-                _ = self.model(inputs) # Forward pass
+                _ = self.model(inputs)
                 
-                # Coleta features capturadas pelo hook
-                feats = activation[last_layer_name].cpu().numpy()
-                features_list.append(feats)
-                labels_list.append(labels.numpy())
+                if last_layer_name in activation:
+                    feats = activation[last_layer_name].cpu().numpy()
+                    features_list.append(feats)
+                    labels_list.append(labels.numpy())
 
-        handle.remove() # Limpa o hook
+        if handle:
+            handle.remove()
         
-        features = np.concatenate(features_list)
-        labels = np.concatenate(labels_list)
+        if features_list:
+            features = np.concatenate(features_list)
+            labels = np.concatenate(labels_list)
+        else:
+            features = np.array([])
+            labels = np.array([])
+            
         return features, labels
 
     def _calculate_local_centers(self) -> Dict[int, np.ndarray]:
-        """
-        Calcula a média das features para cada classe presente localmente.
-        """
         features, labels = self._get_features_and_labels()
+        if len(features) == 0:
+            return {}
+            
         unique_classes = np.unique(labels)
         centers = {}
 
         for cls in unique_classes:
             idx = np.where(labels == cls)[0]
             cls_features = features[idx]
-            # Média geométrica simples (centróide)
             centers[int(cls)] = np.mean(cls_features, axis=0)
             
         return centers
 
     def _prune_dataset(self, global_centers: Dict[int, np.ndarray]):
-        """
-        Implementa a lógica 'Distance Contrast' (DC) e Poda Dupla.
-        Atualiza self.trainloader com um Subset.
-        """
         features, labels = self._get_features_and_labels()
-        
-        # Parâmetros do paper (FedCS) - Você pode passar via config se quiser
-        beta_ratio = 0.65 # Limiar para classe "Majoritária"
-        pf = 0.5          # Taxa de poda alta (High pruning rate)
-        pl = 0.2          # Taxa de poda baixa (Low pruning rate)
+        if len(features) == 0:
+            return
 
-        # 1. Calcular DC Scores
-        # s_ij = |d_min - d_correct|
-        
-        # Prepara matriz de centros globais para cálculo rápido de distância
+        beta_ratio = 0.65 
+        pf = 0.5          
+        pl = 0.2          
+
         classes_global = sorted(list(global_centers.keys()))
+        if not classes_global:
+            return
+
         centers_matrix = np.array([global_centers[k] for k in classes_global])
         
-        from scipy.spatial.distance import cdist
-        # Matriz Distância: [N_amostras, N_classes_globais]
         dists = cdist(features, centers_matrix, metric='euclidean')
-        
         dc_scores = []
-        valid_indices = [] # Índices que conseguimos calcular (classe existe no global)
 
         for i in range(len(features)):
             label = int(labels[i])
             if label not in classes_global:
-                # Se o cliente tem uma classe que o global não conhece (raro), ignoramos ou mantemos
                 dc_scores.append(9999.0) 
                 continue
 
             cls_idx = classes_global.index(label)
-            
-            # Distância para a classe correta
             d_correct = dists[i, cls_idx]
             
-            # Distância para a classe incorreta mais próxima
-            # Mascarar a distância correta para achar o min das outras
             dists_copy = dists[i].copy()
             dists_copy[cls_idx] = np.inf
             d_min = np.min(dists_copy)
             
-            # Score
             score = abs(d_min - d_correct)
             dc_scores.append(score)
 
         dc_scores = np.array(dc_scores)
         
-        # 2. Estratégia de Poda Dupla (Double Pruning)
-        
-        # Contagem de classes
         unique, counts = np.unique(labels, return_counts=True)
-        counts_dict = dict(zip(unique, counts))
-        max_samples = max(counts)
+        max_samples = max(counts) if len(counts) > 0 else 0
         threshold = beta_ratio * max_samples
         
         indices_to_keep = []
 
-        # Itera por cada classe local
         for cls in unique:
             cls_indices = np.where(labels == cls)[0]
             cls_scores = dc_scores[cls_indices]
             
-            # Ordena índices pelo score (menor score = melhor, fronteira de decisão)
-            sorted_idx_local = np.argsort(cls_scores) # índices relativos a cls_indices
+            sorted_idx_local = np.argsort(cls_scores)
             sorted_global_indices = cls_indices[sorted_idx_local]
             
             n_samples = len(cls_indices)
             
-            # Decide taxa de poda
             if n_samples > threshold:
-                # Classe Majoritária -> Poda Agressiva (pf)
-                # Mantém top-(1-pf)
                 k = int(n_samples * (1 - pf))
             else:
-                # Classe Minoritária/Normal -> Poda Suave (pl)
-                # Mantém top-(1-pl)
                 k = int(n_samples * (1 - pl))
             
-            # Garante pelo menos 1 amostra
             k = max(1, k)
-            
             indices_to_keep.extend(sorted_global_indices[:k])
             
         indices_to_keep = sorted(list(set(indices_to_keep)))
         
-        # 3. Atualizar o DataLoader
-        original_dataset = self.trainloader.dataset
+        original_dataset = self.dataloader.dataset
         
-        # Se o dataset original já for um Subset (ex: particionamento), precisamos lidar com cuidado
-        # Mas o torch.utils.data.Subset aceita outro Subset como entrada tranquilamente
-        pruned_dataset = Subset(original_dataset, indices_to_keep)
+        if isinstance(original_dataset, Subset):
+             final_indices = [original_dataset.indices[i] for i in indices_to_keep]
+             dataset_source = original_dataset.dataset
+             pruned_dataset = Subset(dataset_source, final_indices)
+        else:
+             pruned_dataset = Subset(original_dataset, indices_to_keep)
         
-        # Recria o DataLoader
-        # Precisamos pegar o batch_size original
-        batch_size = self.trainloader.batch_size
-        
-        self.trainloader = DataLoader(
+        self.dataloader = DataLoader(
             pruned_dataset,
-            batch_size=batch_size,
-            shuffle=True, # Importante reembaralhar
-            num_workers=self.trainloader.num_workers
+            batch_size=self.dataloader.batch_size,
+            shuffle=True,
+            num_workers=self.dataloader.num_workers
         )
         
-        log.info(f"FedCS Pruning: Reduced dataset from {len(original_dataset)} to {len(pruned_dataset)} samples.")
+        log.info(f"FedCS Pruning: Reduced dataset from {len(indices_to_keep)} samples.")
