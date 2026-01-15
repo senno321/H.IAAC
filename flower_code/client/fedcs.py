@@ -48,7 +48,6 @@ class FedCSClient(BaseClient):
             except Exception as e:
                 log.error(f"Error computing centers: {e}")
                 status_msg = str(e)
-                # Mesmo com erro, retornamos algo para não quebrar o server
                 metrics["local_centers"] = pickle.dumps({})
 
             # Retorna pesos inalterados, contagem e métricas
@@ -61,8 +60,17 @@ class FedCSClient(BaseClient):
                 return super().fit(parameters, config)
 
             try:
+                # Extrai os parâmetros do TOML (que a Strategy colocou no config)
+                # Usa defaults do paper caso algo falhe na passagem
+                beta = float(config.get("beta", 0.65))
+                pf = float(config.get("pf", 0.5))
+                pl = float(config.get("pl", 0.2))
+
                 global_centers = pickle.loads(config["global_centers"])
-                self._prune_dataset(global_centers)
+                
+                # Chama a poda passando os parâmetros dinâmicos
+                self._prune_dataset(global_centers, beta=beta, pf=pf, pl=pl)
+                
             except Exception as e:
                 log.error(f"Error processing global centers or pruning: {e}")
             
@@ -78,7 +86,6 @@ class FedCSClient(BaseClient):
     def _get_features_and_labels(self):
         """
         Roda inferência no dataset local e extrai (features, labels).
-        Robustez adicionada para lidar com Dataloaders que retornam dicts.
         """
         self.model.eval()
         self.model.to(self.device)
@@ -106,25 +113,16 @@ class FedCSClient(BaseClient):
 
         with torch.no_grad():
             for batch in self.dataloader:
-                # --- CORREÇÃO DE BATCH ---
                 # Detecta se é Dict (HuggingFace) ou Tupla/Lista (PyTorch padrão)
                 if isinstance(batch, dict):
-                    # Tenta chaves comuns usadas pelo HuggingFace/FlowerDatasets
-                    if "img" in batch:
-                        inputs = batch["img"]
-                    elif "image" in batch:
-                        inputs = batch["image"]
-                    else:
-                        inputs = list(batch.values())[0] # Fallback
+                    if "img" in batch: inputs = batch["img"]
+                    elif "image" in batch: inputs = batch["image"]
+                    else: inputs = list(batch.values())[0]
 
-                    if "label" in batch:
-                        labels = batch["label"]
-                    elif "labels" in batch:
-                        labels = batch["labels"]
-                    else:
-                        labels = list(batch.values())[1] # Fallback
+                    if "label" in batch: labels = batch["label"]
+                    elif "labels" in batch: labels = batch["labels"]
+                    else: labels = list(batch.values())[1]
                 else:
-                    # Assume Tupla ou Lista [inputs, labels]
                     inputs, labels = batch[0], batch[1]
 
                 inputs = inputs.to(self.device)
@@ -163,14 +161,15 @@ class FedCSClient(BaseClient):
             
         return centers
 
-    def _prune_dataset(self, global_centers: Dict[int, np.ndarray]):
+    def _prune_dataset(self, global_centers: Dict[int, np.ndarray], beta: float, pf: float, pl: float):
+        """
+        Aplica a lógica de poda usando os parâmetros recebidos do TOML.
+        """
         features, labels = self._get_features_and_labels()
         if len(features) == 0:
             return
 
-        beta_ratio = 0.65 
-        pf = 0.5          
-        pl = 0.2          
+        log.info(f"FedCS Pruning Params: beta={beta}, pf={pf}, pl={pl}")
 
         classes_global = sorted(list(global_centers.keys()))
         if not classes_global:
@@ -201,7 +200,9 @@ class FedCSClient(BaseClient):
         
         unique, counts = np.unique(labels, return_counts=True)
         max_samples = max(counts) if len(counts) > 0 else 0
-        threshold = beta_ratio * max_samples
+        
+        # Limiar calculado com o beta do TOML
+        threshold = beta * max_samples
         
         indices_to_keep = []
 
@@ -214,6 +215,7 @@ class FedCSClient(BaseClient):
             
             n_samples = len(cls_indices)
             
+            # Taxas de poda dinâmicas (pf e pl do TOML)
             if n_samples > threshold:
                 k = int(n_samples * (1 - pf))
             else:
@@ -240,4 +242,5 @@ class FedCSClient(BaseClient):
             num_workers=self.dataloader.num_workers
         )
         
-        log.info(f"FedCS Pruning: Reduced dataset from {len(indices_to_keep)} samples.")
+        # Print para garantir que apareça no log
+        print(f" >>> [FedCS] Pruned dataset: {len(original_dataset)} -> {len(indices_to_keep)} samples (beta={beta}, pf={pf}, pl={pl})")
