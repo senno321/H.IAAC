@@ -14,7 +14,7 @@ from flwr.common import (
 )
 from flwr.server.client_proxy import ClientProxy
 
-# Estratégia base do projeto
+# Estratégia base
 from server.strategy.fedavg_random_constant import FedAvgRandomConstant
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         **kwargs,
     ):
         
-        # Limpeza Automática: Se a pasta existir, apaga tudo para começar do zero
+        # Se a pasta existir, apaga tudo para começar do zero
         cache_path = ".cache_fedcs"
         if os.path.exists(cache_path):
             shutil.rmtree(cache_path, ignore_errors=True)
