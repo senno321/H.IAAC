@@ -4,6 +4,7 @@ import logging
 import pickle
 import numpy as np
 import torch
+import os
 from torch.utils.data import DataLoader, Subset
 from scipy.spatial.distance import cdist 
 
@@ -22,6 +23,53 @@ class FedCSClient(BaseClient):
         super().__init__(cid=cid, flwr_cid=flwr_cid, model=model, dataloader=dataloader, dataset_id=dataset_id)
         # Define o device (CUDA ou CPU) internamente
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # --- CONFIGURAÇÃO DE PERSISTÊNCIA ---
+        self.cache_dir = ".cache_fedcs"
+        os.makedirs(self.cache_dir, exist_ok=True)
+        self.index_file = os.path.join(self.cache_dir, f"client_{cid}_indices.pkl")
+        
+        # Tenta carregar o estado podado AUTOMATICAMENTE ao inicializar
+        # Se este cliente já foi podado em rodadas anteriores, recuperamos o estado aqui
+        self._try_load_pruned_state()
+
+    def _try_load_pruned_state(self):
+        """Tenta carregar os índices salvos e aplica a poda se existirem."""
+        if os.path.exists(self.index_file):
+            try:
+                with open(self.index_file, "rb") as f:
+                    indices_to_keep = pickle.load(f)
+                
+                # Recria o DataLoader usando os índices salvos
+                self._recreate_dataloader(indices_to_keep)
+                self.is_pruned = True
+                log.info(f"Client {self.cid}: Loaded pruned dataset ({len(indices_to_keep)} samples) from cache.")
+            except Exception as e:
+                log.error(f"Client {self.cid}: Failed to load pruning cache: {e}")
+                self.is_pruned = False
+        else:
+            self.is_pruned = False
+
+    def _recreate_dataloader(self, indices_to_keep):
+        """Função auxiliar para recriar o DataLoader com um Subset."""
+        original_dataset = self.dataloader.dataset
+        
+        # Lida com Subset recursivo (se já for um subset, volta para o pai)
+        if isinstance(original_dataset, Subset):
+             source_indices = original_dataset.indices
+             # Traduz os índices novos para os índices do dataset original
+             final_indices = [source_indices[i] for i in indices_to_keep]
+             dataset_real = original_dataset.dataset
+             pruned_dataset = Subset(dataset_real, final_indices)
+        else:
+             pruned_dataset = Subset(original_dataset, indices_to_keep)
+        
+        self.dataloader = DataLoader(
+            pruned_dataset,
+            batch_size=self.dataloader.batch_size,
+            shuffle=True,
+            num_workers=self.dataloader.num_workers
+        )
 
     def fit(self, parameters, config):
         """
@@ -31,11 +79,16 @@ class FedCSClient(BaseClient):
         set_weights(self.model, parameters)
 
         phase = config.get("phase", "pretrain")
-        log.info(f"Client {self.cid}: Starting fit phase '{phase}'")
+        
+        if self.is_pruned:
+             log.info(f"Client {self.cid}: Training phase '{phase}' with PRUNED dataset ({len(self.dataloader.dataset)} samples)")
+        else:
+             log.info(f"Client {self.cid}: Starting fit phase '{phase}'")
 
         metrics = {}
         
         # --- FASE 1: Pré-treino ---
+        # Se já estiver podado (via __init__), treina no dataset reduzido
         if phase == "pretrain":
             return super().fit(parameters, config)
 
@@ -55,13 +108,16 @@ class FedCSClient(BaseClient):
 
         # --- FASE 3: Poda (Pruning) ---
         elif phase == "pruning":
+            # Se já foi podado (self.is_pruned == True), evitamos reprocessar
+            if self.is_pruned:
+                return super().fit(parameters, config)
+
             if "global_centers" not in config:
                 log.error("Global centers not found in config during pruning phase!")
                 return super().fit(parameters, config)
 
             try:
                 # Extrai os parâmetros do TOML (que a Strategy colocou no config)
-                # Usa defaults do paper caso algo falhe na passagem
                 beta = float(config.get("beta", 0.65))
                 pf = float(config.get("pf", 0.5))
                 pl = float(config.get("pl", 0.2))
@@ -79,6 +135,7 @@ class FedCSClient(BaseClient):
 
         # --- FASE 4: Fine-Tuning ---
         elif phase == "fine_tuning":
+            # O dataloader correto já foi carregado no __init__ se o cache existir
             return super().fit(parameters, config)
             
         return super().fit(parameters, config)
@@ -164,6 +221,7 @@ class FedCSClient(BaseClient):
     def _prune_dataset(self, global_centers: Dict[int, np.ndarray], beta: float, pf: float, pl: float):
         """
         Aplica a lógica de poda usando os parâmetros recebidos do TOML.
+        SALVA os índices em disco para persistência entre rodadas.
         """
         features, labels = self._get_features_and_labels()
         if len(features) == 0:
@@ -226,21 +284,17 @@ class FedCSClient(BaseClient):
             
         indices_to_keep = sorted(list(set(indices_to_keep)))
         
-        original_dataset = self.dataloader.dataset
+        # --- PERSISTÊNCIA: SALVAR EM DISCO ---
+        try:
+            with open(self.index_file, "wb") as f:
+                pickle.dump(indices_to_keep, f)
+            log.info(f"Client {self.cid}: Saved pruning indices to {self.index_file}")
+        except Exception as e:
+            log.error(f"Client {self.cid}: Failed to save pruning indices: {e}")
+
+        # Atualiza o DataLoader atual
+        self._recreate_dataloader(indices_to_keep)
+        self.is_pruned = True
         
-        if isinstance(original_dataset, Subset):
-             final_indices = [original_dataset.indices[i] for i in indices_to_keep]
-             dataset_source = original_dataset.dataset
-             pruned_dataset = Subset(dataset_source, final_indices)
-        else:
-             pruned_dataset = Subset(original_dataset, indices_to_keep)
-        
-        self.dataloader = DataLoader(
-            pruned_dataset,
-            batch_size=self.dataloader.batch_size,
-            shuffle=True,
-            num_workers=self.dataloader.num_workers
-        )
-        
-        # Print para garantir que apareça no log
-        print(f" >>> [FedCS] Pruned dataset: {len(original_dataset)} -> {len(indices_to_keep)} samples (beta={beta}, pf={pf}, pl={pl})")
+        # Print para aparecer no log
+        print(f" >>> [FedCS] Pruned dataset: {len(features)} -> {len(indices_to_keep)} samples (beta={beta}, pf={pf}, pl={pl})")

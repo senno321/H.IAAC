@@ -1,5 +1,8 @@
 import logging
 import pickle
+import shutil
+import os
+
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -25,6 +28,13 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         pl: float = 0.2,
         **kwargs,
     ):
+        
+        # Limpeza Automática: Se a pasta existir, apaga tudo para começar do zero
+        cache_path = ".cache_fedcs"
+        if os.path.exists(cache_path):
+            shutil.rmtree(cache_path, ignore_errors=True)
+            print(f">>> [Auto-Clean] Pasta '{cache_path}' limpa para o novo experimento.")
+
         """
         Estratégia FedCS que gerencia as fases de Seleção e Poda.
         Recebe os hiperparâmetros definidos no workflow.py.

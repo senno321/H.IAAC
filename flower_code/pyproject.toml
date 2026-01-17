@@ -93,7 +93,7 @@ battery-threshold = 0.1
 # strategy
 aggregation-name = "fedavg"
 participants-name = "constant"
-selection-name = "random"
+selection-name = "fedcs"
 
 num-clients = 10 #shakespeare:903 cifar10:100 speech_commands:2112
 num-rounds = 15 #100

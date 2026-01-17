@@ -6,7 +6,7 @@ from flwr.common import Context
 from client.base import BaseClient
 from client.critical import CriticalClient
 from client.feddyn import FedDynClient
-from client.fedcs import FedCSClient  # Certifique-se que o arquivo existe em client/fedcs.py
+from client.fedcs import FedCSClient 
 from utils.simulation.config import set_seed
 from utils.simulation.workflow import get_user_dataloader, get_initial_model
 
