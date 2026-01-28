@@ -64,13 +64,17 @@ def train(model, dataloader, epochs, criterion, optimizer, device, dataset_id):
             total_loss += loss.item() * y.size(0)
 
         if epoch == epochs:
-            avg_acc = correct_pred / total_pred
-            avg_loss = total_loss / total_pred
+            # Handle case where dataloader might be empty
+            denom = total_pred if total_pred > 0 else 1
+            avg_acc = correct_pred / denom
+            avg_loss = total_loss / denom
 
-            if criterion.reduction == "none":
-                stat_util = num_samples * ((squared_sum / num_samples) ** (1 / 2))
+            if criterion.reduction == "none" and num_samples > 0:
+                # RMSE calculation for stat_util
+                rms = (squared_sum / num_samples) ** 0.5
+                stat_util = num_samples * rms
             else:
-                stat_util = 0
+                stat_util = 0.0
 
     return avg_loss, avg_acc, stat_util
 
