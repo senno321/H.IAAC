@@ -334,7 +334,7 @@ class DatasetFactory:
             g.manual_seed(seed)
 
             trainloader = DataLoader(partition_torch, batch_size=batch_size, shuffle=True, num_workers=0,
-                                     worker_init_fn=seed_worker, generator=g)
+                                     worker_init_fn=seed_worker, generator=g, drop_last=True)
 
             cls._fds_partition_cache[partition_id] = trainloader
         else:
@@ -366,7 +366,7 @@ class DatasetFactory:
 
             dataset = ShakespeareDataset(partition)
             trainloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0,
-                                     worker_init_fn=seed_worker, generator=g)
+                                     worker_init_fn=seed_worker, generator=g, drop_last=True)
 
             cls._fds_partition_cache[partition_id] = trainloader
         else:

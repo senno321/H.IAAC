@@ -94,7 +94,7 @@ aggregation-name = "fedavg"
 participants-name = "constant"
 selection-name = "fedcs"
 
-num-clients = 100
+num-clients = 9
 num-rounds = 3
 num-participants = 2
 num-evaluators = 2

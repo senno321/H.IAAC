@@ -68,7 +68,8 @@ class FedCSClient(BaseClient):
             pruned_dataset,
             batch_size=self.dataloader.batch_size,
             shuffle=True,
-            num_workers=self.dataloader.num_workers
+            num_workers=self.dataloader.num_workers,
+            drop_last=True,
         )
 
     def fit(self, parameters, config):

@@ -48,10 +48,10 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   fi
 
   echo ">> Creating model (seed=1)..."
-  python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed 1
+  PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed 1
 
   echo ">> Creating profiles (seed=1, 100 clients)..."
-  python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed 1
+  PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed 1
 
   if [ "$HAS_BAK" = true ] && [ -f pyproject.toml.bak ]; then
     mv pyproject.toml.bak pyproject.toml
@@ -69,7 +69,7 @@ MODEL="Mobilenet_v2"
 
 for PR in 10 30 50 70 90; do
   echo "=== pretrain-rounds=$PR ==="
-  RUN_CONFIG="seed=$SEED num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL dir-alpha=$ALPHA selection-name=fedcs participants-name=constant model-name=$MODEL pretrain-rounds=$PR"
+  RUN_CONFIG="seed=$SEED num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR"
   if [ "$DRY_RUN" = true ]; then
     echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
   else
