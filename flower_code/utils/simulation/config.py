@@ -115,8 +115,8 @@ class ConfigRepository:
         cfg["num-evaluators"] = int(cfg["num-evaluators"])
 
         #two-phase
-        cfg["num-participants-bpc"] = int(cfg["num-participants-bcp"])
-        cfg["num-participants-apc"] = int(cfg["num-participants-acp"])
+        cfg["num-participants-bcp"] = int(cfg["num-participants-bcp"])
+        cfg["num-participants-acp"] = int(cfg["num-participants-acp"])
 
         # client
         cfg["battery-threshold"] = float(cfg["battery-threshold"])

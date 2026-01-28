@@ -1,6 +1,6 @@
 import json
 from abc import abstractmethod
-from logging import ERROR
+from logging import ERROR, INFO
 from typing import Callable, Optional, Union
 
 import numpy as np
@@ -63,7 +63,10 @@ class BaseStrategy(Strategy):
             self, client_manager: ClientManager
     ) -> Optional[Parameters]:
         """Initialize global model parameters."""
+        log(INFO, f"Waiting for {self.num_clients} client(s) to connect. "
+            f"If this hangs, ensure num-supernodes >= num_clients in your federation.")
         client_manager.wait_for(self.num_clients)
+        log(INFO, f"All {self.num_clients} client(s) connected. Proceeding with initialization.")
         available_cids = client_manager.all().keys()
         self.cid_map = {cid: -1 for cid in available_cids}
         if self.use_battery:
