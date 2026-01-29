@@ -175,9 +175,17 @@ def test(model, dataloader, device, dataset_id):
             total_pred += y.size(0)
             correct_pred += (predicted == y).sum().item()
 
-    avg_loss = total_loss / total_pred
-    avg_acc = correct_pred / total_pred
-    stat_util = len(dataloader) * ((squared_sum / len(dataloader)) ** (1 / 2))
+    if total_pred == 0:
+        # Dataloader is empty, return default values and optionally log a warning
+        avg_loss = 0.0
+        avg_acc = 0.0
+        stat_util = 0.0
+        # print("Warning: test dataloader is empty, returning zeros.")  # Optional
+    else:
+        avg_loss = total_loss / total_pred
+        avg_acc = correct_pred / total_pred
+        stat_util = len(dataloader) * ((squared_sum / len(dataloader)) ** (1 / 2)) if len(dataloader) > 0 else 0.0
+
     return avg_loss, avg_acc, stat_util
 
 

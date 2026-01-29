@@ -1,0 +1,502 @@
+{
+  "0": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 131704473.90931752
+  },
+  "1": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 208222159.6272839
+  },
+  "2": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 133604665.56615244
+  },
+  "3": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 117602043.96624391
+  },
+  "4": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 132790009.82938056
+  },
+  "5": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "6": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 7880360.65034197
+  },
+  "7": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 28051966.575706176
+  },
+  "8": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 18427071.49293499
+  },
+  "9": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 180066157.98107958
+  },
+  "10": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 214788959.88680512
+  },
+  "11": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 203413811.13373893
+  },
+  "12": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 126522336.77711035
+  },
+  "13": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 115322313.00021036
+  },
+  "14": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "15": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 21382451.67042312
+  },
+  "16": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "17": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "18": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 133195796.19950114
+  },
+  "19": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "20": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 15675889.290328067
+  },
+  "21": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 30790174.007485136
+  },
+  "22": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 36455876.446733974
+  },
+  "23": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 102218458.84747805
+  },
+  "24": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 113745293.39890835
+  },
+  "25": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 213499891.70325783
+  },
+  "26": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 217695906.64102677
+  },
+  "27": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 28849716.92841302
+  },
+  "28": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 31852447.107603505
+  },
+  "29": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 93083231.84022886
+  },
+  "30": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 18417338.370345607
+  },
+  "31": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 38498404.428771995
+  },
+  "32": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 111074570.11776155
+  },
+  "33": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 116984121.17789643
+  },
+  "34": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 111694893.50709061
+  },
+  "35": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 103840226.04071732
+  },
+  "36": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 179122693.17677286
+  },
+  "37": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 212649537.35234734
+  },
+  "38": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "39": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 79963200.80406894
+  },
+  "40": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 219068227.15639523
+  },
+  "41": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 219694539.59419927
+  },
+  "42": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 200237106.3938785
+  },
+  "43": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "44": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 10243941.240370475
+  },
+  "45": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "46": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 135763929.8352911
+  },
+  "47": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 9974522.842158128
+  },
+  "48": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "49": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 202228907.8701747
+  },
+  "50": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 205103771.47327065
+  },
+  "51": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 214223714.118895
+  },
+  "52": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "53": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 217301844.68753856
+  },
+  "54": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "55": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "56": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 14204567.533277042
+  },
+  "57": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 216311120.7681298
+  },
+  "58": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 209129809.84796754
+  },
+  "59": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 29571643.226903178
+  },
+  "60": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 21604501.43360611
+  },
+  "61": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "62": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 112639708.8510965
+  },
+  "63": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 1877685.9131547362
+  },
+  "64": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 111860121.41073802
+  },
+  "65": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "66": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "67": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 16059302.169214819
+  },
+  "68": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 111371303.62841761
+  },
+  "69": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 215854873.854267
+  },
+  "70": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "71": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 130169053.60689892
+  },
+  "72": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 206523213.73183236
+  },
+  "73": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 31912880.62358307
+  },
+  "74": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 206414333.871
+  },
+  "75": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "76": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 198295395.63854253
+  },
+  "77": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 112593127.00956029
+  },
+  "78": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 18129365.44951939
+  },
+  "79": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 112260490.65298492
+  },
+  "80": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 11339697.286931336
+  },
+  "81": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 32182797.939922005
+  },
+  "82": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 113958572.57074274
+  },
+  "83": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "84": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 210595334.3147538
+  },
+  "85": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 79833816.13457671
+  },
+  "86": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 214205065.42643252
+  },
+  "87": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 9472436.822184661
+  },
+  "88": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 34870930.35690118
+  },
+  "89": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 100000000.0,
+    "final_battery_mJ": 0.0
+  },
+  "90": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 214628174.49991602
+  },
+  "91": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 131226624.37851931
+  },
+  "92": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 35459528.97232431
+  },
+  "93": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 28383842.60866288
+  },
+  "94": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 128018062.51931126
+  },
+  "95": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 28480289.912977688
+  },
+  "96": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 23393229.95055663
+  },
+  "97": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 111302980.25364621
+  },
+  "98": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 200000000.0,
+    "final_battery_mJ": 30515443.43847739
+  },
+  "99": {
+    "max_battery_mJ": 432000000.0,
+    "initial_battery_mJ": 300000000.0,
+    "final_battery_mJ": 211485455.57934204
+  }
+}
