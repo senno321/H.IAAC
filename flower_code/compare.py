@@ -1,13 +1,19 @@
 import json
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec  # Para o layout personalizado
+import numpy as np                      # Para calcular a reta de tendência
 import os
 
 # --- CONFIGURATION ---
-BASE_PATH = "outputs/15-01-2026"
+BASE_PATH = "outputs/28-01-2026"
 
-# Folder names
-FEDCS_FOLDER = "fedavg_fedcs_constant_5_battery_True_dataset_cifar10_dir_1.0_seed_1"
-RANDOM_FOLDER = "fedavg_random_constant_5_battery_True_dataset_cifar10_dir_1.0_seed_1"
+PRETRAIN_CONFIGS = [
+    ("pretrain10", "fedavg_fedcs_constant_10_pretrain10_battery_True_dataset_cifar10_dir_0.3_seed_1"),
+    ("pretrain30", "fedavg_fedcs_constant_10_pretrain30_battery_True_dataset_cifar10_dir_0.3_seed_1"),
+    ("pretrain50", "fedavg_fedcs_constant_10_pretrain50_battery_True_dataset_cifar10_dir_0.3_seed_1"),
+    ("pretrain70", "fedavg_fedcs_constant_10_pretrain70_battery_True_dataset_cifar10_dir_0.3_seed_1"),
+    ("pretrain90", "fedavg_fedcs_constant_10_pretrain90_battery_True_dataset_cifar10_dir_0.3_seed_1"),
+]
 
 def load_json(folder, filename):
     path = os.path.join(BASE_PATH, folder, filename)
@@ -19,13 +25,8 @@ def load_json(folder, filename):
         return None
 
 def extract_metric(data, metric_name):
-    """
-    Extracts metrics from format: { "0": {"key": val, ...}, "1": ... }
-    Returns: list of tuples (round, value) sorted by round.
-    """
     if not data:
         return []
-    
     extracted = []
     for round_str, metrics_dict in data.items():
         try:
@@ -35,112 +36,116 @@ def extract_metric(data, metric_name):
                 extracted.append((round_num, val))
         except ValueError:
             continue 
-            
     extracted.sort(key=lambda x: x[0])
     return extracted
 
-# --- LOAD DATA ---
-print("Loading Model Performance...")
-model_fedcs = load_json(FEDCS_FOLDER, "model_performance.json")
-model_random = load_json(RANDOM_FOLDER, "model_performance.json")
+# --- 1. COLETA DOS DADOS ---
+acc_list = []
+energy_list = []
+labels = []
 
-print("Loading System Performance (Energy)...")
-sys_fedcs = load_json(FEDCS_FOLDER, "system_performance.json")
-sys_random = load_json(RANDOM_FOLDER, "system_performance.json")
+for label, folder in PRETRAIN_CONFIGS:
+    model_perf = load_json(folder, "model_performance.json")
+    sys_perf = load_json(folder, "system_performance.json")
+    
+    acc = extract_metric(model_perf, "cen_accuracy")
+    energy = extract_metric(sys_perf, "total_mJ")
+    
+    acc_list.append(acc)
+    energy_list.append(energy)
+    labels.append(label)
 
-# --- EXTRACT METRICS ---
-# 1. Accuracy & Loss
-acc_fedcs = extract_metric(model_fedcs, "cen_accuracy")
-acc_random = extract_metric(model_random, "cen_accuracy")
-loss_fedcs = extract_metric(model_fedcs, "cen_loss")
-loss_random = extract_metric(model_random, "cen_loss")
+# --- 2. CÁLCULOS GLOBAIS (Para ajustar escalas) ---
 
-# 2. Energy (mJ)
-# The key in system_performance.json is typically "total_mJ"
-energy_fedcs = extract_metric(sys_fedcs, "total_mJ")
-energy_random = extract_metric(sys_random, "total_mJ")
+# Acurácia (Min/Max global)
+all_accuracies = []
+for acc in acc_list:
+    if acc:
+        values = [v for r, v in acc] 
+        all_accuracies.extend(values)
 
-# --- PLOTTING ---
-plt.figure(figsize=(18, 5))
+acc_min, acc_max = 0, 1
+if all_accuracies:
+    _min, _max = min(all_accuracies), max(all_accuracies)
+    margin = (_max - _min) * 0.1 if _max != _min else 0.05
+    acc_min, acc_max = _min - margin, _max + margin
 
-# Plot 1: Accuracy
-plt.subplot(1, 3, 1)
-if acc_fedcs:
-    r, v = zip(*acc_fedcs)
-    plt.plot(r, v, label='FedCS', marker='o', linestyle='-', linewidth=2, color='blue')
-    # Pruning Line
-    if len(r) > 5:
-        plt.axvline(x=5, color='gray', linestyle=':', alpha=0.6)
-        plt.text(5.1, v[5], 'Pruning', fontsize=8, color='gray')
+# Energia (Totais e Min/Max global)
+total_energy_per_config = []
+for energy_data in energy_list:
+    if energy_data:
+        r, v = zip(*energy_data)
+        total_energy_per_config.append(sum(v))
+    else:
+        total_energy_per_config.append(0)
 
-if acc_random:
-    r, v = zip(*acc_random)
-    plt.plot(r, v, label='Random', marker='s', linestyle='--', color='orange')
+energy_min, energy_max = 0, 1
+valid_energies = [x for x in total_energy_per_config if x > 0]
+if valid_energies:
+    _min, _max = min(valid_energies), max(valid_energies)
+    margin = (_max - _min) * 0.1
+    if margin == 0: margin = _max * 0.05
+    energy_min, energy_max = _min - margin, _max + margin
 
-plt.title("Centralized Accuracy")
-plt.xlabel("Rounds")
-plt.ylabel("Accuracy")
-plt.grid(True, alpha=0.3)
-plt.legend()
 
-# Plot 2: Loss
-plt.subplot(1, 3, 2)
-if loss_fedcs:
-    r, v = zip(*loss_fedcs)
-    plt.plot(r, v, label='FedCS', marker='o', color='blue')
-if loss_random:
-    r, v = zip(*loss_random)
-    plt.plot(r, v, label='Random', marker='s', linestyle='--', color='orange')
+# --- 3. PLOTAGEM UNIFICADA ---
 
-plt.title("Centralized Loss")
-plt.xlabel("Rounds")
-plt.ylabel("Loss")
-plt.grid(True, alpha=0.3)
-plt.legend()
+# Cria uma figura grande (aumentei a altura para caber os dois andares)
+fig = plt.figure(figsize=(22, 10))
 
-# Plot 3: Energy (mJ)
-plt.subplot(1, 3, 3)
-if energy_fedcs:
-    r, v = zip(*energy_fedcs)
-    plt.plot(r, v, label='FedCS', marker='o', color='green')
-if energy_random:
-    r, v = zip(*energy_random)
-    plt.plot(r, v, label='Random', marker='s', linestyle='--', color='red')
+# Define o Grid: 2 linhas, 5 colunas.
+# hspace ajusta o espaço vertical entre os gráficos de cima e o de baixo
+gs = gridspec.GridSpec(2, 5, figure=fig, height_ratios=[1, 1], hspace=0.3)
 
-plt.title("Energy Consumption per Round (mJ)")
-plt.xlabel("Rounds")
-plt.ylabel("Energy (mJ)")
-plt.grid(True, alpha=0.3)
-plt.legend()
+# --- PARTE DE CIMA: ACURÁCIA (5 Gráficos) ---
+for i, (acc, label) in enumerate(zip(acc_list, labels)):
+    # Cria o subplot na linha 0, coluna i
+    ax = fig.add_subplot(gs[0, i])
+    
+    if acc:
+        r, v = zip(*acc)
+        # 1. Plota os pontos
+        ax.plot(r, v, marker='o', color='blue', label='Dados', alpha=0.6)
+        
+        # 2. CALCULA A RETA DE TENDÊNCIA
+        if len(r) > 1: # Só faz sentido se tiver mais de 1 ponto
+            # polyfit(x, y, 1) retorna os coeficientes da reta (ax + b)
+            z = np.polyfit(r, v, 1) 
+            p = np.poly1d(z)
+            # Plota a reta vermelha tracejada
+            ax.plot(r, p(r), "r--", linewidth=2, label='Tendência')
 
-plt.tight_layout()
+    ax.set_title(f"Acurácia - {label}")
+    ax.set_xlabel("Rounds")
+    if i == 0: ax.set_ylabel("Accuracy") # Só põe label Y no primeiro
+    
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(acc_min, acc_max) # Escala dinâmica global
+    
+    # Opcional: Legenda apenas no primeiro gráfico para não poluir
+    if i == 0: ax.legend()
+
+# --- PARTE DE BAIXO: ENERGIA (1 Gráfico Largo) ---
+# Cria um subplot que ocupa a linha 1 inteira (todas as colunas :)
+ax_energy = fig.add_subplot(gs[1, :]) 
+
+bars = ax_energy.bar(labels, total_energy_per_config, color='green', alpha=0.7, width=0.5)
+
+ax_energy.set_title("Energia Total Acumulada por Configuração", fontsize=14)
+ax_energy.set_ylabel("Energia Total (mJ)")
+ax_energy.set_xlabel("Configuração")
+ax_energy.grid(axis='y', alpha=0.3)
+ax_energy.set_ylim(energy_min, energy_max) # Escala dinâmica global
+
+# Adiciona valores nas barras
+for bar in bars:
+    height = bar.get_height()
+    if height > 0:
+        ax_energy.text(bar.get_x() + bar.get_width()/2., height,
+                 f'{height:.2e}', 
+                 ha='center', va='bottom', fontsize=11, fontweight='bold')
+
+fig.suptitle("Análise de Performance: Acurácia e Consumo Energético", fontsize=18)
+
+# Ajuste fino para não cortar nada
 plt.show()
-
-# --- SUMMARY TABLE ---
-def get_final(data):
-    return data[-1][1] if data else 0.0
-
-def get_sum(data):
-    # Sums all values (e.g., total energy across all rounds)
-    return sum([x[1] for x in data]) if data else 0.0
-
-final_acc_cs = get_final(acc_fedcs)
-final_acc_rnd = get_final(acc_random)
-
-total_energy_cs = get_sum(energy_fedcs)
-total_energy_rnd = get_sum(energy_random)
-
-print("\n" + "="*65)
-print(f"{'METRIC':<25} | {'FedCS (Proposed)':<18} | {'Random (Baseline)':<18}")
-print("="*65)
-print(f"{'Final Accuracy':<25} | {final_acc_cs:.4f}             | {final_acc_rnd:.4f}")
-print(f"{'Total Energy (mJ)':<25} | {total_energy_cs:,.0f}          | {total_energy_rnd:,.0f}")
-
-# Calculate Savings
-if total_energy_rnd > 0:
-    savings = (1 - total_energy_cs / total_energy_rnd) * 100
-    print(f"{'Energy Savings':<25} | {savings:.2f}%              | -")
-else:
-    print(f"{'Energy Savings':<25} | N/A                  | -")
-
-print("="*65)

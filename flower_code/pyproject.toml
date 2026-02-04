@@ -61,14 +61,14 @@ input-shape = "(3,224,224)"
 # classes
 num-classes = 10 #CRNNResNetAttn: 12 Lstm: - Others: 10
 # model independent
-epochs = 1 #real deploy: 5
+epochs = 100 #real deploy: 5
 learning-rate = 1e-2 #CRNNResNetAttn: 3e-4 Others: 1e-3
 weight-decay = 1e-5
 decay-step = 10
 momentum = 0.9
 
 # DEVICE CONFIGURATIONS
-use-battery = true
+use-battery = false
 prefer-time = "EQUAL" # SLOW, EQUAL, FAST
 prefer-battery = "EQUAL" # LOW, MEDIUM, HIGH, EQUAL
 prefer-carbon = "UNIFORM" # LOW, HIGH, UNIFORM
@@ -83,8 +83,8 @@ net-scenario = "US"
 # "uoft-cs/cifar10"
 # "speech_commands"
 hugginface-id = "uoft-cs/cifar10"
-dir-alpha = 1.0 #0.1, 0.3, 1.0
-batch-size = 8
+dir-alpha = 0.3 #0.1, 0.3, 1.0
+batch-size = 64
 
 # client
 battery-threshold = 0.1
@@ -95,10 +95,10 @@ participants-name = "constant"
 selection-name = "fedcs"
 
 num-clients = 100
-num-rounds = 3
-num-participants = 2
-num-evaluators = 2
-num-candidates = 2
+num-rounds = 10
+num-participants = 10
+num-evaluators = 10
+num-candidates = 10
 
 #TwoPhase
 num-participants-bcp = 5
@@ -132,7 +132,7 @@ default = "local-simulation"
 # to connect; if fewer supernodes exist, it hangs after [INIT] with no error.
 # local-simulation: minimal (3 clients) para teste Mobilenet_v2.
 [tool.flwr.federations.local-simulation]
-options.num-supernodes = 9
+options.num-supernodes = 10
 options.backend.client-resources.num-cpus = 1
 options.backend.client-resources.num-gpus = 0
 options.backend.init_args.num_cpus = 2

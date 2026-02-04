@@ -69,7 +69,7 @@ MODEL="Mobilenet_v2"
 
 for PR in 10 30 50 70 90; do
   echo "=== pretrain-rounds=$PR ==="
-  RUN_CONFIG="seed=$SEED num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR"
+  RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=0.3 selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR batch-size=64 use-battery=false epochs=10"
   if [ "$DRY_RUN" = true ]; then
     echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
   else
