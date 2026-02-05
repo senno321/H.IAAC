@@ -23,6 +23,26 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Some compute nodes mount /home/$USER as non-writable. Redirect common
+# config/cache dirs to a writable location under the repo when needed.
+if [ -z "${HOME:-}" ] || [ ! -w "${HOME:-/nonexistent}" ]; then
+  export HOME="$ROOT/.runhome"
+fi
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$XDG_CONFIG_HOME/matplotlib}"
+export HF_HOME="${HF_HOME:-$XDG_CACHE_HOME/huggingface}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$HF_HOME/datasets}"
+export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/transformers}"
+mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$MPLCONFIGDIR" \
+  "$HF_HOME" "$HF_DATASETS_CACHE" "$TRANSFORMERS_CACHE"
+
+# Auto-activate local venv if present and not already active
+if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/.venv/bin/activate" ]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/.venv/bin/activate"
+fi
+
 FED="local-simulation-100"
 SKIP_SETUP=false
 DRY_RUN=false
