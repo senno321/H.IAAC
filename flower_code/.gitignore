@@ -1,6 +1,9 @@
 # Ambiente virtual
 venv/
 
+# Pastas de ambientes/pacotes gerados automaticamente (não versionar)
+ENTER/
+
 # Arquivos gerados pelo Python
 __pycache__/
 *.pyc

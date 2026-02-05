@@ -1,22 +1,60 @@
+import argparse
 import json
+import os
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec  # Para o layout personalizado
 import numpy as np                      # Para calcular a reta de tendência
-import os
 
-# --- CONFIGURATION ---
-BASE_PATH = "outputs/28-01-2026"
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Compare experiment outputs for a given day (auto-detects up to 5 folders)."
+    )
+    parser.add_argument(
+        "--date",
+        default=None,
+        help="Date folder in DD-MM-YYYY (default: today)",
+    )
+    parser.add_argument(
+        "--base",
+        default="outputs",
+        help="Base outputs directory (default: outputs)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Max number of experiment folders to compare (default: 5)",
+    )
+    return parser.parse_args()
 
-PRETRAIN_CONFIGS = [
-    ("pretrain10", "fedavg_fedcs_constant_10_pretrain10_battery_True_dataset_cifar10_dir_0.3_seed_1"),
-    ("pretrain30", "fedavg_fedcs_constant_10_pretrain30_battery_True_dataset_cifar10_dir_0.3_seed_1"),
-    ("pretrain50", "fedavg_fedcs_constant_10_pretrain50_battery_True_dataset_cifar10_dir_0.3_seed_1"),
-    ("pretrain70", "fedavg_fedcs_constant_10_pretrain70_battery_True_dataset_cifar10_dir_0.3_seed_1"),
-    ("pretrain90", "fedavg_fedcs_constant_10_pretrain90_battery_True_dataset_cifar10_dir_0.3_seed_1"),
-]
 
-def load_json(folder, filename):
-    path = os.path.join(BASE_PATH, folder, filename)
+def resolve_base_path(date_str, base_dir):
+    if not date_str:
+        date_str = datetime.now().strftime("%d-%m-%Y")
+    return os.path.join(base_dir, date_str)
+
+
+def discover_configs(base_path, limit):
+    if not os.path.isdir(base_path):
+        raise FileNotFoundError(f"Base path not found: {base_path}")
+
+    configs = []
+    for entry in sorted(os.listdir(base_path)):
+        folder_path = os.path.join(base_path, entry)
+        if not os.path.isdir(folder_path):
+            continue
+        model_path = os.path.join(folder_path, "model_performance.json")
+        system_path = os.path.join(folder_path, "system_performance.json")
+        if os.path.isfile(model_path) and os.path.isfile(system_path):
+            configs.append((entry, entry))
+        if len(configs) >= limit:
+            break
+    return configs
+
+def load_json(base_path, folder, filename):
+    path = os.path.join(base_path, folder, filename)
     try:
         with open(path, 'r') as f:
             return json.load(f)
@@ -39,18 +77,27 @@ def extract_metric(data, metric_name):
     extracted.sort(key=lambda x: x[0])
     return extracted
 
+args = parse_args()
+BASE_PATH = resolve_base_path(args.date, args.base)
+PRETRAIN_CONFIGS = discover_configs(BASE_PATH, args.limit)
+
+if not PRETRAIN_CONFIGS:
+    raise RuntimeError(
+        f"No experiment folders with model_performance.json and system_performance.json found in: {BASE_PATH}"
+    )
+
 # --- 1. COLETA DOS DADOS ---
 acc_list = []
 energy_list = []
 labels = []
 
 for label, folder in PRETRAIN_CONFIGS:
-    model_perf = load_json(folder, "model_performance.json")
-    sys_perf = load_json(folder, "system_performance.json")
-    
+    model_perf = load_json(BASE_PATH, folder, "model_performance.json")
+    sys_perf = load_json(BASE_PATH, folder, "system_performance.json")
+
     acc = extract_metric(model_perf, "cen_accuracy")
     energy = extract_metric(sys_perf, "total_mJ")
-    
+
     acc_list.append(acc)
     energy_list.append(energy)
     labels.append(label)
@@ -90,12 +137,13 @@ if valid_energies:
 
 # --- 3. PLOTAGEM UNIFICADA ---
 
-# Cria uma figura grande (aumentei a altura para caber os dois andares)
-fig = plt.figure(figsize=(22, 10))
+num_configs = len(labels)
+fig_width = max(14, num_configs * 4)
+fig = plt.figure(figsize=(fig_width, 10))
 
-# Define o Grid: 2 linhas, 5 colunas.
+# Define o Grid: 2 linhas, N colunas.
 # hspace ajusta o espaço vertical entre os gráficos de cima e o de baixo
-gs = gridspec.GridSpec(2, 5, figure=fig, height_ratios=[1, 1], hspace=0.3)
+gs = gridspec.GridSpec(2, num_configs, figure=fig, height_ratios=[1, 1], hspace=0.3)
 
 # --- PARTE DE CIMA: ACURÁCIA (5 Gráficos) ---
 for i, (acc, label) in enumerate(zip(acc_list, labels)):
