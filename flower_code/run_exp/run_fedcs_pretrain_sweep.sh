@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# FedCS pretrain-rounds sweep: 10, 30, 50, 70, 90.
+# FedCS pretrain-rounds sweep: 10, 50, 90 (multiple seeds).
 # Model: MobileNet | Clients: 100 | Rounds: 100 | Participants/round: 10
-# Dirichlet alpha: 0.3 | Strategy: FedCS with pre-training.
+# Dirichlet alpha: 1.0 | Strategy: FedCS with pre-training | Seeds: 2, 3, 4
 #
 # Usage:
 #   ./run_exp/run_fedcs_pretrain_sweep.sh [federation] [--skip-setup] [--dry-run]
@@ -38,9 +38,9 @@ mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$MPLCONFIGDIR" \
   "$HF_HOME" "$HF_DATASETS_CACHE" "$TRANSFORMERS_CACHE"
 
 # Auto-activate local venv if present and not already active
-if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/.venv/bin/activate" ]; then
+if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/venv/bin/activate" ]; then
   # shellcheck disable=SC1091
-  source "$ROOT/.venv/bin/activate"
+  source "$ROOT/venv/bin/activate"
 fi
 
 FED="local-simulation-100"
@@ -54,9 +54,11 @@ for arg in "$@"; do
 done
 [[ -n "$1" && "$1" != --* ]] && FED="$1"
 
-echo "=== FedCS pretrain-rounds sweep ==="
+echo "=== FedCS pretrain-rounds sweep (multiple seeds) ==="
 echo "Federation: $FED"
-echo "Pretrain-rounds: 10, 30, 50, 70, 90"
+echo "Pretrain-rounds: 10, 50, 90"
+echo "Seeds: 2, 3, 4"
+echo "Dir-alpha: 1.0 (balanced distribution)"
 echo ""
 
 if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
@@ -65,13 +67,14 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   if [ -f pyproject.toml ]; then
     cp pyproject.toml pyproject.toml.bak && HAS_BAK=true
     sed -i 's/^num-clients = .*/num-clients = 100/' pyproject.toml || true
-  fi
+  # Generate model/profiles for each seed
+  for SEED in 2 3 4; do
+    echo ">> Creating model (seed=$SEED)..."
+    PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed $SEED
 
-  echo ">> Creating model (seed=1)..."
-  PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed 1
-
-  echo ">> Creating profiles (seed=1, 100 clients)..."
-  PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed 1
+    echo ">> Creating profiles (seed=$SEED, 100 clients)..."
+    PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed $SEED
+  done
 
   if [ "$HAS_BAK" = true ] && [ -f pyproject.toml.bak ]; then
     mv pyproject.toml.bak pyproject.toml
@@ -79,22 +82,28 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   echo ""
 fi
 
-SEED=1
 N_CLIENTS=100
 N_ROUNDS=100
 N_PART=10
 N_EVAL=10
-ALPHA=0.3
+ALPHA=1.0
 MODEL="Mobilenet_v2"
 
-for PR in 10 30 50 70 90; do
-  echo "=== pretrain-rounds=$PR ==="
-  RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=0.3 selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR batch-size=64 use-battery=false epochs=10"
-  if [ "$DRY_RUN" = true ]; then
-    echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
-  else
-    flwr run . "$FED" --run-config="$RUN_CONFIG"
-  fi
+# Loop over seeds and pretrain-rounds
+for SEED in 2 3 4; do
+  for PR in 10 50 90; do
+    echo "=== SEED=$SEED pretrain-rounds=$PR ==="
+    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR batch-size=64 use-battery=false epochs=10"
+    if [ "$DRY_RUN" = true ]; then
+      echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
+    else
+      flwr run . "$FED" --run-config="$RUN_CONFIG"
+    fi
+    echo ""
+  done
+done
+
+echo "=== Sweep completo! Total: 9 experimentos (3 seeds × 3 pretrain-rounds) ==="
   echo ""
 done
 

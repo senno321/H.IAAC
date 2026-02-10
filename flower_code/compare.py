@@ -163,7 +163,7 @@ for i, (acc, label) in enumerate(zip(acc_list, labels)):
             # Plota a reta vermelha tracejada
             ax.plot(r, p(r), "r--", linewidth=2, label='Tendência')
 
-    ax.set_title(f"Acurácia - {label}")
+    ax.set_title(f"Acurácia - {label}", fontsize=6)
     ax.set_xlabel("Rounds")
     if i == 0: ax.set_ylabel("Accuracy") # Só põe label Y no primeiro
     
@@ -179,9 +179,10 @@ ax_energy = fig.add_subplot(gs[1, :])
 
 bars = ax_energy.bar(labels, total_energy_per_config, color='green', alpha=0.7, width=0.5)
 
-ax_energy.set_title("Energia Total Acumulada por Configuração", fontsize=14)
+ax_energy.set_title("Energia Total Acumulada por Configuração", fontsize=18)
 ax_energy.set_ylabel("Energia Total (mJ)")
 ax_energy.set_xlabel("Configuração")
+ax_energy.tick_params(axis='x', labelsize=6)
 ax_energy.grid(axis='y', alpha=0.3)
 ax_energy.set_ylim(energy_min, energy_max) # Escala dinâmica global
 
