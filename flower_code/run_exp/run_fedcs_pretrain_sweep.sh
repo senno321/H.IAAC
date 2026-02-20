@@ -67,6 +67,8 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   if [ -f pyproject.toml ]; then
     cp pyproject.toml pyproject.toml.bak && HAS_BAK=true
     sed -i 's/^num-clients = .*/num-clients = 100/' pyproject.toml || true
+  fi
+
   # Generate model/profiles for each seed
   for SEED in 2 3 4; do
     echo ">> Creating model (seed=$SEED)..."
@@ -93,7 +95,7 @@ MODEL="Mobilenet_v2"
 for SEED in 2 3 4; do
   for PR in 10 50 90; do
     echo "=== SEED=$SEED pretrain-rounds=$PR ==="
-    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR batch-size=64 use-battery=false epochs=10"
+    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR batch-size=64 epochs=10"
     if [ "$DRY_RUN" = true ]; then
       echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
     else
@@ -104,7 +106,5 @@ for SEED in 2 3 4; do
 done
 
 echo "=== Sweep completo! Total: 9 experimentos (3 seeds × 3 pretrain-rounds) ==="
-  echo ""
-done
-
+echo ""
 echo "=== FedCS pretrain sweep finished ==="

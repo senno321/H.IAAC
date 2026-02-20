@@ -9,7 +9,7 @@ Usage:
     python analyze_multiseed.py <date_folder>
     
 Example:
-    python analyze_multiseed.py 10-02-2026
+    python3 analyze_multiseed.py 11-02-2026
 """
 
 import json
@@ -97,7 +97,7 @@ def main():
             continue
         
         data_by_pretrain[pretrain].append((seed, energy))
-        print(f"✅ pretrain{pretrain} seed{seed}: {energy/1e11:.2f} × 10¹¹ mJ")
+        print(f"✅ pretrain{pretrain} seed{seed}: {energy} mJ")
     
     # Calcular estatísticas
     print(f"\n{'='*70}")
@@ -119,12 +119,12 @@ def main():
         max_e = max(energies)
         
         results.append((pretrain, mean, stdev, len(energies)))
-        
+
         print(f"pretrain{pretrain:<4} "
-              f"{mean/1e11:>6.2f} × 10¹¹ mJ   "
-              f"±{stdev/1e11:>6.2f} × 10¹¹    "
+              f"{mean} mJ   "
+              f"±{stdev}    "
               f"{len(energies):<6} "
-              f"[{min_e/1e11:.2f}, {max_e/1e11:.2f}]")
+              f"[{min_e}, {max_e}]")
     
     # Verificar se padrão é monotônico
     print(f"\n{'='*70}")
@@ -138,14 +138,14 @@ def main():
             print("✅ HIPÓTESE CONFIRMADA!")
             print("   Energia cresce monotonicamente com pretrain-rounds:")
             for pretrain, mean, _, _ in results:
-                print(f"      pretrain{pretrain}: {mean/1e11:.2f} × 10¹¹ mJ")
+                print(f"      pretrain{pretrain}: {mean} mJ")
             print("\n   → O padrão anterior era causado por variância estocástica.")
         else:
             print("⚠️  PADRÃO NÃO-MONOTÔNICO PERSISTE!")
             print("   Ordem observada:")
             sorted_by_energy = sorted(results, key=lambda x: x[1])
             for pretrain, mean, _, _ in sorted_by_energy:
-                print(f"      pretrain{pretrain}: {mean/1e11:.2f} × 10¹¹ mJ")
+                print(f"      pretrain{pretrain}: {mean} mJ")
             print("\n   → Investigar mais: pode ser efeito algoritmo ou código.")
     else:
         print("⚠️  Dados insuficientes para validar hipótese (precisa >= 2 configs).")

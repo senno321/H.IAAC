@@ -62,12 +62,11 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"pretrain{self.pretrain_rounds}_battery_{self.use_battery}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"pretrain{self.pretrain_rounds}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")
         self.system_performance_path = os.path.join(output_dir, "system_performance.json")
-        self.fl_cli_state_path = os.path.join(output_dir, "client_state.json") 
 
     def configure_fit(
         self, server_round: int, parameters: Parameters, client_manager

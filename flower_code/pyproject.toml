@@ -44,8 +44,6 @@ root-outputs-dir = "./outputs/"
 # "./utils/profile/CRNNResNetAttn.json"
 # "./utils/profile/simplecnn_scaled.json"
 devices-profile-path = "./utils/profile/Mobilenet_v2.json"
-net-speed-path = "./utils/profile/bandwidth.json"
-carbon-data-path = "./utils/profile/carbon.json"
 
 # MODELS — teste local minimal com Mobilenet_v2
 # "simplecnn"
@@ -54,51 +52,39 @@ carbon-data-path = "./utils/profile/carbon.json"
 # "Resnext50_32x4d"
 # "Lstm"
 # "CRNNResNetAttn"
-model-name = "Mobilenet_v2"
+model-name = "simplecnn"
 # shape: CIFAR10 32x32 vs ImageNet-style 224x224 (Mobilenet)
-#input-shape = "(3, 32, 32)"
-input-shape = "(3,224,224)"
+input-shape = "(3, 32, 32)"
+#input-shape = "(3,224,224)"
 # classes
 num-classes = 10 #CRNNResNetAttn: 12 Lstm: - Others: 10
 # model independent
-epochs = 100 #real deploy: 5
+epochs = 1 #real deploy: 5
 learning-rate = 1e-2 #CRNNResNetAttn: 3e-4 Others: 1e-3
 weight-decay = 1e-5
 decay-step = 10
 momentum = 0.9
 
-# DEVICE CONFIGURATIONS
-use-battery = false
 prefer-time = "EQUAL" # SLOW, EQUAL, FAST
-prefer-battery = "EQUAL" # LOW, MEDIUM, HIGH, EQUAL
-prefer-carbon = "UNIFORM" # LOW, HIGH, UNIFORM
-battery-profile-low = 100
-battery-profile-medium = 200
-battery-profile-high = 300
-carbon-region = "United States"
-net-scenario = "US"
 
 # DATASET
 # "flwrlabs/shakespeare"
 # "uoft-cs/cifar10"
 # "speech_commands"
 hugginface-id = "uoft-cs/cifar10"
-dir-alpha = 0.3 #0.1, 0.3, 1.0
-batch-size = 64
-
-# client
-battery-threshold = 0.1
+dir-alpha = 1 #0.1, 0.3, 1.0
+batch-size = 8
 
 # strategy — teste local minimal (poucos clientes/rodadas para passar do [INIT])
 aggregation-name = "fedavg"
 participants-name = "constant"
 selection-name = "fedcs"
 
-num-clients = 100
+num-clients = 10
 num-rounds = 10
-num-participants = 10
-num-evaluators = 10
-num-candidates = 10
+num-participants = 3
+num-evaluators = 2
+num-candidates = 2
 
 #TwoPhase
 num-participants-bcp = 5
@@ -114,13 +100,9 @@ is-critical = false
 mult-factor = 1
 prioritize-sim = true
 
-#FedDyn
-# *selection-name = "feddyn"
-alpha-coef = 0.01
-
 #FedCS
 # *selection-name = "fedcs"
-pretrain-rounds = 1      # teste minimal
+pretrain-rounds = 3      # teste minimal
 beta = 0.65              # Limiar para considerar uma classe como "Large-Capacity"
 pf = 0.5                 # Taxa de poda alta (para classes grandes)
 pl = 0.2                 # Taxa de poda baixa (para classes pequenas/restantes)

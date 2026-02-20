@@ -30,16 +30,16 @@ class ConfigRepository:
 
     @classmethod
     def preprocess_app_config(cls, cfg):
+        if "root-profile-dir" in cfg and "root-profiles-dir" not in cfg:
+            cfg["root-profiles-dir"] = cfg["root-profile-dir"]
 
         # Defaults
         # global
         cfg.setdefault("seed", 1)
         cfg.setdefault("root-model-dir", "./model/")
-        cfg.setdefault("root-profile-dir", "./profiles/")
+        cfg.setdefault("root-profiles-dir", "./profiles/")
         cfg.setdefault("root-outputs-dir", "./outputs/")
-        cfg.setdefault("devices-profile-path", "./utils/profiles/Mobilenet_v2.json")
-        cfg.setdefault("net-speed-path", "./utils/profiles/bandwidth.json")
-        cfg.setdefault("carbon-data-path", "./utils/profiles/carbon.json")
+        cfg.setdefault("devices-profile-path", "./utils/profile/Mobilenet_v2.json")
 
         # dataset
         cfg.setdefault("hugginface-id", "uoft-cs/cifar10")
@@ -54,15 +54,8 @@ class ConfigRepository:
         cfg.setdefault("learning-rate", 1e-3)
 
         # device profile
-        cfg.setdefault("prefer-time", "UNIFORM")
-        cfg.setdefault("prefer-battery", "EQUAL")
-        cfg.setdefault("prefer-carbon", "UNIFORM")
-        cfg.setdefault("battery-profile-low", 10)
-        cfg.setdefault("battery-profile-medium", 20)
-        cfg.setdefault("battery-profile-high", 30)
-        cfg.setdefault("use-battery", False)
-        cfg.setdefault("carbon-region", "United States")
-        cfg.setdefault("net-scenario", "US")
+        cfg.setdefault("prefer-time", "EQUAL")
+
         # strategy
         cfg.setdefault("participants-name", "constant")
         cfg.setdefault("selection-name", "random")
@@ -72,24 +65,21 @@ class ConfigRepository:
         cfg.setdefault("num-participants", 10)
         cfg.setdefault("num-evaluators", 0)
 
-        #two-phase
+        # two-phase
         cfg.setdefault("num-participants-bcp", 10)
         cfg.setdefault("num-participants-acp", 10)
 
-        #fedcs
+        # fedcs
         cfg.setdefault("pretrain-rounds", 5)
         cfg.setdefault("beta", 0.65)
         cfg.setdefault("pf", 0.5)
         cfg.setdefault("pl", 0.2)
 
-        # client
-        cfg.setdefault("battery-threshold", 0.1)
-
         # Processing
         # global
         cfg["seed"] = int(cfg["seed"])
         os.makedirs(cfg["root-model-dir"], exist_ok=True)
-        os.makedirs(cfg["root-profile-dir"], exist_ok=True)
+        os.makedirs(cfg["root-profiles-dir"], exist_ok=True)
         os.makedirs(cfg["root-outputs-dir"], exist_ok=True)
 
         # dataset
@@ -102,26 +92,17 @@ class ConfigRepository:
         cfg["epochs"] = int(cfg["epochs"])
         cfg["learning-rate"] = float(cfg["learning-rate"])
 
-        # device profile
-        cfg["use-battery"] = bool(cfg["use-battery"])
-        cfg["battery-profile-low"] = float(cfg["battery-profile-low"])
-        cfg["battery-profile-medium"] = float(cfg["battery-profile-medium"])
-        cfg["battery-profile-high"] = float(cfg["battery-profile-high"])
-
         # strategy
         cfg["num-clients"] = int(cfg["num-clients"])
         cfg["num-rounds"] = int(cfg["num-rounds"])
         cfg["num-participants"] = int(cfg["num-participants"])
         cfg["num-evaluators"] = int(cfg["num-evaluators"])
 
-        #two-phase
+        # two-phase
         cfg["num-participants-bcp"] = int(cfg["num-participants-bcp"])
         cfg["num-participants-acp"] = int(cfg["num-participants-acp"])
 
-        # client
-        cfg["battery-threshold"] = float(cfg["battery-threshold"])
-
-        #fedcs
+        # fedcs
         if "pretrain-rounds" in cfg:
             cfg["pretrain-rounds"] = int(cfg["pretrain-rounds"])
         if "beta" in cfg:
@@ -143,19 +124,10 @@ class ConfigRepository:
             errors.append("dir-alpha > 0")
         if cfg["num-classes"] < 2:
             errors.append("num-classes > 1")
-        if cfg["prefer-time"] not in ["SLOW", "EQUAL", "FAST"]:
-            errors.append("Device inference time distribution config (prefer-time) must be: SLOW, EQUAL or FAST")
-        if cfg["prefer-battery"] not in ["LOW", "MEDIUM", "HIGH", "EQUAL"]:
-            errors.append(
-                "Device battery distribution config (prefer-battery) must be: LOW, MEDIUM, HIGH or EQUAL")
-        if cfg["prefer-carbon"] not in ["LOW", "HIGH", "UNIFORM"]:
-            errors.append(
-                "Device carbon intensity distribution config (prefer-carbon) must be: LOW, HIGH or UNIFORM")
-        if cfg["battery-profile-low"] <= 0 or cfg["battery-profile-medium"] <= 0 or cfg["battery-profile-high"] <= 0:
-            errors.append("Some battery profile is <= 0")
+        if cfg["prefer-time"] not in ["SLOW", "EQUAL", "FAST", "UNIFORM", "QUICK"]:
+            errors.append("Device training time distribution config (prefer-time) must be: SLOW, EQUAL, FAST, UNIFORM or QUICK")
         if errors:
             raise ValueError("Config errors:\n" + "\n".join(errors))
-
 
 def set_seed(seed: int):
     os.environ['PYTHONHASHSEED'] = str(seed)

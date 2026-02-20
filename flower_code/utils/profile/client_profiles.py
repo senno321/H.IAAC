@@ -7,8 +7,7 @@ from typing import Any, Union
 
 import numpy as np
 
-from utils.profile.client_metrics import get_clients_battery, \
-    get_clients_carbon_intensity, select_network_speeds, assign_client_profiles
+from utils.profile.client_metrics import assign_client_profiles
 
 
 def load_devices(file_path: Union[str, os.PathLike[str]]) -> Any:
@@ -58,29 +57,30 @@ def load_devices(file_path: Union[str, os.PathLike[str]]) -> Any:
         raise OSError(f"Falha ao abrir/ler {path}: {e}") from e
 
 
-def create_profiles(num_clients: int, seed: int, devices_profile_path: str, bandwidth_path: str, carbon_data_path: str,
-                    prefer_time: str, prefer_battery: str, prefer_carbon: str, kj_low: int, kj_medium: int,
-                    kj_high: int, carbon_region: str, net_scenario: str):
+def create_profiles(num_clients: int, seed: int, devices_profile_path: str, prefer_time: str):
     # Load available profiles
     devices = load_devices(devices_profile_path)
 
-    selected_devices = assign_client_profiles(devices, num_clients, mode=prefer_time, seed=seed)
+    prefer_time_mode = str(prefer_time).strip().lower()
+    if prefer_time_mode == "equal":
+        prefer_time_mode = "equal"
+    elif prefer_time_mode in {"uniform", "quick", "fast"}:
+        prefer_time_mode = "fast"
+    elif prefer_time_mode == "slow":
+        prefer_time_mode = "slow"
+    else:
+        prefer_time_mode = "equal"
+
+    selected_devices = assign_client_profiles(devices, num_clients, mode=prefer_time_mode, seed=seed)
 
     profiles = defaultdict(dict)
 
     for idx, profile in enumerate(selected_devices):
-        profiles[idx] = profile
+        profiles[idx] = {
+            "training_ms": profile["training_ms"],
+            "training_mJ": profile["training_mJ"],
+        }
         profiles[idx]["flwr_cid"] = -1
-        profiles[idx]["comm_round_time"] = -1
-
-    # Add a initial battery value
-    if prefer_battery is not None:
-        profiles = get_clients_battery(profiles, seed, prefer_battery, kj_low, kj_medium, kj_high)
-
-    # Add a carbon intensity
-    profiles = get_clients_carbon_intensity(profiles, seed, carbon_data_path, carbon_region, prefer_carbon)
-
-    # Add a network speed
-    profiles = select_network_speeds(profiles, seed, bandwidth_path, net_scenario)
+        profiles[idx]["training_round_time"] = -1
 
     return profiles

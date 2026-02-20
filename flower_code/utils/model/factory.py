@@ -77,12 +77,12 @@ class StackedLSTM(nn.Module):
         Parameters
         ----------
         text : torch.Tensor
-            Input Tensor that will pass through the network
+            Input tensor passed through the model
 
         Returns
         -------
         torch.Tensor
-            The resulting Tensor after it has passed through the network
+            The output tensor produced by the model
         """
         embedded = self.embedding(text)
         self.lstm.flatten_parameters()

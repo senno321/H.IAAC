@@ -22,24 +22,11 @@ def main():
 
     # creating profiles
     devices_profile_path = cfg["devices-profile-path"]
-    carbon_data_path = cfg["carbon-data-path"]
-    net_speed_path = cfg["net-speed-path"]
     num_clients = cfg["num-clients"]
     seed = args.seed
     prefer_time = cfg["prefer-time"]
-    prefer_battery = cfg["prefer-battery"] if cfg["use-battery"] else None
-    prefer_carbon = cfg["prefer-carbon"]
 
-    kj_low = cfg["battery-profile-low"]
-    kj_medium = cfg["battery-profile-medium"]
-    kj_high = cfg["battery-profile-high"]
-    carbon_region = cfg["carbon-region"]
-
-    net_scenario = cfg["net-scenario"]
-
-    profiles = create_profiles(num_clients, seed, devices_profile_path, net_speed_path, carbon_data_path,
-                               prefer_time, prefer_battery, prefer_carbon, kj_low, kj_medium, kj_high, carbon_region,
-                               net_scenario)
+    profiles = create_profiles(num_clients, seed, devices_profile_path, prefer_time)
 
     pro_files = cfg["root-profiles-dir"] + f"profiles.json"
 

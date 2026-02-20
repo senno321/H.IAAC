@@ -5,7 +5,6 @@ from flwr.common import Context
 # from client.base import FlowerClient
 from client.base import BaseClient
 from client.critical import CriticalClient
-from client.feddyn import FedDynClient
 from client.fedcs import FedCSClient 
 from utils.simulation.config import set_seed
 from utils.simulation.workflow import get_user_dataloader, get_initial_model
@@ -33,15 +32,6 @@ def client_fn(context: Context):
     # Lógica de decisão
     if is_critical:
         return CriticalClient(
-            cid=cid, 
-            flwr_cid=flwr_cid, 
-            model=model, 
-            dataloader=dataloader,
-            dataset_id=dataset_id
-        ).to_client()
-        
-    elif selection_name == "feddyn":
-        return FedDynClient(
             cid=cid, 
             flwr_cid=flwr_cid, 
             model=model, 

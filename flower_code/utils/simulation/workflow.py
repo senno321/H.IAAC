@@ -8,12 +8,6 @@ from flwr.server import ServerConfig, Server, SimpleClientManager, ServerAppComp
 from torch.utils.data import DataLoader
 
 from server.strategy.fedavg_random_constant import FedAvgRandomConstant
-from server.strategy.fedavg_random_constant_twophase import FedAvgRandomConstantTwoPhase
-from server.strategy.fedavg_random_criticalfl import FedAvgRandomCPEval
-from server.strategy.fedavg_random_recombination import FedAvgRandomRecombination
-from server.strategy.fedavg_power_of_choice import FedAvgPowerOfChoice
-from server.strategy.fedavg_divfl_constant import FedAvgDivflConstant
-from server.strategy.fedavg_random_feddyn import FedAvgRandomFedDyn
 from server.strategy.fedcs_strategy import FedCSRandomConstant
 
 from utils.dataset.partition import DatasetFactory
@@ -196,109 +190,8 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
     if aggregation_name == "fedavg":
         if selection_name == "random":
             if participants_name == "constant":
-                strategy = FedAvgRandomConstant(repr="FedAvgRandomConstant",
-                                                num_clients=num_clients,
-                                                profiles=profiles,
-                                                num_participants=num_participants,
-                                                num_evaluators=num_evaluators,
-                                                context=context,
-                                                initial_parameters=initial_parameters,
-                                                fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-                                                evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-                                                on_fit_config_fn=on_fit_config_fn,
-                                                on_eval_config_fn=on_eval_config_fn,
-                                                evaluate_fn=evaluate_fn)
-            elif participants_name == "twophase":
-                strategy = FedAvgRandomConstantTwoPhase(repr="FedAvgRandomConstantTwoPhase",
-                                                        num_clients=num_clients,
-                                                        profiles=profiles,
-                                                        num_participants=num_participants,
-                                                        num_evaluators=num_evaluators,
-                                                        context=context,
-                                                        initial_parameters=initial_parameters,
-                                                        fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-                                                        evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-                                                        on_fit_config_fn=on_fit_config_fn,
-                                                        on_eval_config_fn=on_eval_config_fn,
-                                                        evaluate_fn=evaluate_fn)
-            elif participants_name == "criticalfl":
-                strategy = FedAvgRandomCPEval(repr="CriticalFL",
-                                              num_clients=num_clients,
-                                              profiles=profiles,
-                                              num_participants=num_participants,
-                                              num_evaluators=num_evaluators,
-                                              context=context,
-                                              initial_parameters=initial_parameters,
-                                              fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-                                              evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-                                              on_fit_config_fn=on_fit_config_fn,
-                                              on_eval_config_fn=on_eval_config_fn,
-                                              evaluate_fn=evaluate_fn)
-            elif participants_name == "recombination":
-                strategy = FedAvgRandomRecombination(repr="FedAvgRandomRecombination",
-                                                     num_clients=num_clients,
-                                                     profiles=profiles,
-                                                     num_participants=num_participants,
-                                                     num_evaluators=num_evaluators,
-                                                     context=context,
-                                                     initial_parameters=initial_parameters,
-                                                     fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-                                                     evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-                                                     on_fit_config_fn=on_fit_config_fn,
-                                                     on_eval_config_fn=on_eval_config_fn,
-                                                     evaluate_fn=evaluate_fn,
-                                                     proxy_loader=proxy_loader)
-        elif selection_name == "power-of-choice":
-            if participants_name == "constant":
-
-                # Pega o novo parâmetro 'd' do .toml
-                num_candidates = int(context.run_config["num-candidates"])
-
-                # Validação CRÍTICA
-                if num_evaluators != num_candidates:
-                    raise ValueError(
-                        f"Para Power-of-Choice, 'num-evaluators' ({num_evaluators}) "
-                        f"DEVE ser igual a 'num-candidates' ({num_candidates}) no .toml"
-                    )
-
-                strategy = FedAvgPowerOfChoice(
-                    repr="FedAvgPowerOfChoice",
-                    num_candidates=num_candidates, 
-                    num_clients=num_clients,
-                    profiles=profiles,
-                    num_participants=num_participants,
-                    num_evaluators=num_evaluators,
-                    context=context,
-                    initial_parameters=initial_parameters,
-                    fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-                    evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-                    on_fit_config_fn=on_fit_config_fn,
-                    on_eval_config_fn=on_eval_config_fn,
-                    evaluate_fn=evaluate_fn
-                )
-        elif selection_name == "divfl":
-            if participants_name == "constant":
-
-                        strategy = FedAvgDivflConstant(
-                            repr="FedAvgDivflConstant",
-                            num_clients=num_clients,
-                            profiles=profiles,
-                            num_participants=num_participants,
-                            num_evaluators=num_evaluators,
-                            context=context,
-                            initial_parameters=initial_parameters,
-                            fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-                            evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-                            on_fit_config_fn=on_fit_config_fn,
-                            on_eval_config_fn=on_eval_config_fn,
-                            evaluate_fn=evaluate_fn
-                        )
-        elif selection_name == "feddyn":
-            if participants_name == "constant":
-                alpha_coef = float(context.run_config.get("alpha-coef", 0.01))
-                strategy = FedAvgRandomFedDyn(
-                    repr="FedAvgRandomFedDyn",
-                    alpha_coef=alpha_coef,
+                strategy = FedAvgRandomConstant(
+                    repr="FedAvgRandomConstant",
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,
@@ -313,7 +206,7 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 )
         elif selection_name == "fedcs":
             if participants_name == "constant":
-                # Valores padrão se não estiverem no config
+                # FedCS hyperparameters
                 pretrain_rounds = int(context.run_config.get("pretrain-rounds", 5))
                 beta = float(context.run_config.get("beta", 0.65))
                 pf = float(context.run_config.get("pf", 0.5))
@@ -325,7 +218,6 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     beta=beta,
                     pf=pf,
                     pl=pl,
-                    # --- Argumentos Obrigatórios herdados de FedAvgRandomConstant ---
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,
