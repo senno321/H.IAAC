@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from flwr.common import (
+    FitIns,
     FitRes,
     Parameters,
     Scalar,
@@ -47,6 +48,27 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         
         self.global_class_centers = None
         self.last_weights = None
+        self.prune_event_id = 0
+
+    def _get_phase(self, server_round: int) -> str:
+        if server_round <= self.pretrain_rounds:
+            return "pretrain"
+        if server_round == self.pretrain_rounds + 1:
+            return "selection"
+        if server_round == self.pretrain_rounds + 2:
+            return "pruning"
+        return "fine_tuning"
+
+    def _configure_all_clients_fit(
+        self, parameters: Parameters, client_manager, config: Dict[str, Scalar]
+    ) -> List[Tuple[ClientProxy, FitIns]]:
+        fit_ins = FitIns(parameters, config)
+        num_available = client_manager.num_available()
+        clients = client_manager.sample(
+            num_clients=num_available,
+            min_num_clients=num_available,
+        )
+        return [(client, fit_ins) for client in clients]
 
     def _do_initialization(self, client_manager):
         """Output dir includes pretrain_rounds so sweeps don't overwrite each other."""
@@ -72,23 +94,23 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         self, server_round: int, parameters: Parameters, client_manager
     ) -> List[Tuple[ClientProxy, FitRes]]:
         
-        # Define a fase atual baseada no round
-        phase = "pretrain"
-        if server_round <= self.pretrain_rounds:
-            phase = "pretrain"
-        elif server_round == self.pretrain_rounds + 1:
-            phase = "selection"
-        elif server_round == self.pretrain_rounds + 2:
-            phase = "pruning"
-        else:
-            phase = "fine_tuning"
+        phase = self._get_phase(server_round)
 
         log.info(f"FedCS Round {server_round}: Entering phase '{phase}'")
 
+        target_prune_event_id = self.prune_event_id + (1 if phase == "pruning" else 0)
+
+        # Mantém a configuração base do treino (inclui server_round, epochs, lr, etc.)
+        base_fit_config: Dict[str, Scalar] = {}
+        if self.on_fit_config_fn is not None:
+            base_fit_config = self.on_fit_config_fn(server_round)
+
         # Configuração base enviada aos clientes
         config = {
+            **base_fit_config,
             "phase": phase,
             "current_round": server_round,
+            "prune_event_id": target_prune_event_id,
             # Passamos os hiperparâmetros para o cliente usar na poda
             "beta": self.beta,
             "pf": self.pf,
@@ -98,6 +120,9 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         # Na fase de Poda, enviamos os Centros Globais
         if phase == "pruning" and self.global_class_centers is not None:
             config["global_centers"] = pickle.dumps(self.global_class_centers)
+
+        if phase == "pruning":
+            return self._configure_all_clients_fit(parameters, client_manager, config)
 
         # Chama o configure_fit da classe mãe para selecionar clientes
         client_instructions = super().configure_fit(server_round, parameters, client_manager)
@@ -116,9 +141,10 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        phase = self._get_phase(server_round)
         
         # Fase de Seleção: Agrega Centros de Classe
-        if server_round == self.pretrain_rounds + 1:
+        if phase == "selection":
             log.info("FedCS: Aggregating Class Centers (Selection Phase)")
             
             all_local_centers = []
@@ -157,6 +183,9 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         
         # Fases normais: Agregação padrão (FedAvg)
         aggregated_parameters, metrics = super().aggregate_fit(server_round, results, failures)
+
+        if phase == "pruning" and results and not failures:
+            self.prune_event_id += 1
         
         # Salva pesos atuais
         if aggregated_parameters:

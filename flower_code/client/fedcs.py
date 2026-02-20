@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple, Union 
+from typing import Dict
 
 import logging
 import pickle
@@ -8,7 +8,6 @@ import os
 from torch.utils.data import DataLoader, Subset
 from scipy.spatial.distance import cdist 
 
-from flwr.common import FitRes, Parameters, Status, Code
 from client.base import BaseClient 
 from utils.model.manipulation import set_weights 
 
@@ -27,7 +26,7 @@ class FedCSClient(BaseClient):
         # --- CONFIGURAÇÃO DE PERSISTÊNCIA ---
         self.cache_dir = ".cache_fedcs"
         os.makedirs(self.cache_dir, exist_ok=True)
-        self.index_file = os.path.join(self.cache_dir, f"client_{cid}_indices.pkl")
+        self.prune_state_file = os.path.join(self.cache_dir, f"client_{cid}_prune_state.pkl")
         
         # Tenta carregar o estado podado AUTOMATICAMENTE ao inicializar
         # Se este cliente já foi podado em rodadas anteriores, recuperamos o estado aqui
@@ -35,20 +34,36 @@ class FedCSClient(BaseClient):
 
     def _try_load_pruned_state(self):
         """Tenta carregar os índices salvos e aplica a poda se existirem."""
-        if os.path.exists(self.index_file):
+        if os.path.exists(self.prune_state_file):
             try:
-                with open(self.index_file, "rb") as f:
-                    indices_to_keep = pickle.load(f)
+                with open(self.prune_state_file, "rb") as f:
+                    payload = pickle.load(f)
+
+                if isinstance(payload, dict):
+                    indices_to_keep = payload.get("indices", [])
+                    self.last_prune_event_id = int(payload.get("event_id", 1))
+                else:
+                    # Compatibilidade com cache legado (somente lista de índices)
+                    indices_to_keep = payload
+                    self.last_prune_event_id = 1
                 
                 # Recria o DataLoader usando os índices salvos
                 self._recreate_dataloader(indices_to_keep)
                 self.is_pruned = True
-                log.info(f"Client {self.cid}: Loaded pruned dataset ({len(indices_to_keep)} samples) from cache.")
+                log.info(
+                    f"Client {self.cid}: Loaded pruned dataset ({len(indices_to_keep)} samples) "
+                    f"from cache (event_id={self.last_prune_event_id})."
+                )
             except Exception as e:
                 log.error(f"Client {self.cid}: Failed to load pruning cache: {e}")
                 self.is_pruned = False
+                self.last_prune_event_id = 0
         else:
             self.is_pruned = False
+            self.last_prune_event_id = 0
+
+    def _is_prune_event_already_applied(self, prune_event_id: int) -> bool:
+        return self.is_pruned and self.last_prune_event_id >= prune_event_id
 
     def _recreate_dataloader(self, indices_to_keep):
         """Função auxiliar para recriar o DataLoader com um Subset."""
@@ -109,8 +124,11 @@ class FedCSClient(BaseClient):
 
         # --- FASE 3: Poda (Pruning) ---
         elif phase == "pruning":
-            # Se já foi podado (self.is_pruned == True), evitamos reprocessar
-            if self.is_pruned:
+            prune_event_id = int(config.get("prune_event_id", 1))
+
+            # Se o evento de poda já foi aplicado, apenas reutiliza o dataset podado
+            if self._is_prune_event_already_applied(prune_event_id):
+                log.info(f"Client {self.cid}: Pruning event {prune_event_id} already applied. Reusing pruned dataset.")
                 return super().fit(parameters, config)
 
             if "global_centers" not in config:
@@ -126,7 +144,7 @@ class FedCSClient(BaseClient):
                 global_centers = pickle.loads(config["global_centers"])
                 
                 # Chama a poda passando os parâmetros dinâmicos
-                self._prune_dataset(global_centers, beta=beta, pf=pf, pl=pl)
+                self._prune_dataset(global_centers, prune_event_id=prune_event_id, beta=beta, pf=pf, pl=pl)
                 
             except Exception as e:
                 log.error(f"Error processing global centers or pruning: {e}")
@@ -219,7 +237,14 @@ class FedCSClient(BaseClient):
             
         return centers
 
-    def _prune_dataset(self, global_centers: Dict[int, np.ndarray], beta: float, pf: float, pl: float):
+    def _prune_dataset(
+        self,
+        global_centers: Dict[int, np.ndarray],
+        prune_event_id: int,
+        beta: float,
+        pf: float,
+        pl: float,
+    ):
         """
         Aplica a lógica de poda usando os parâmetros recebidos do TOML.
         SALVA os índices em disco para persistência entre rodadas.
@@ -287,15 +312,23 @@ class FedCSClient(BaseClient):
         
         # --- PERSISTÊNCIA: SALVAR EM DISCO ---
         try:
-            with open(self.index_file, "wb") as f:
-                pickle.dump(indices_to_keep, f)
-            log.info(f"Client {self.cid}: Saved pruning indices to {self.index_file}")
+            payload = {
+                "event_id": prune_event_id,
+                "indices": indices_to_keep,
+            }
+            with open(self.prune_state_file, "wb") as f:
+                pickle.dump(payload, f)
+            log.info(
+                f"Client {self.cid}: Saved pruning state to {self.prune_state_file} "
+                f"(event_id={prune_event_id})"
+            )
         except Exception as e:
             log.error(f"Client {self.cid}: Failed to save pruning indices: {e}")
 
         # Atualiza o DataLoader atual
         self._recreate_dataloader(indices_to_keep)
         self.is_pruned = True
+        self.last_prune_event_id = prune_event_id
         
         # Print para aparecer no log
         print(f" >>> [FedCS] Pruned dataset: {len(features)} -> {len(indices_to_keep)} samples (beta={beta}, pf={pf}, pl={pl})")
