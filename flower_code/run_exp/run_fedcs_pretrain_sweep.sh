@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # FedCS pretrain-rounds sweep: 10, 50, 90 (multiple seeds).
 # Model: MobileNet | Clients: 100 | Rounds: 100 | Participants/round: 10
-# Dirichlet alpha: 1.0 | Strategy: FedCS with pre-training | Seeds: 2, 3, 4
+# Dirichlet alpha: 0.1 | Strategy: FedCS with pre-training | Seeds: 2, 3, 4
 #
 # Usage:
 #   ./run_exp/run_fedcs_pretrain_sweep.sh [federation] [--skip-setup] [--dry-run]
@@ -58,7 +58,7 @@ echo "=== FedCS pretrain-rounds sweep (multiple seeds) ==="
 echo "Federation: $FED"
 echo "Pretrain-rounds: 10, 50, 90"
 echo "Seeds: 2, 3, 4"
-echo "Dir-alpha: 1.0 (balanced distribution)"
+echo "Dir-alpha: 0.1 (balanced distribution)"
 echo ""
 
 if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
@@ -88,7 +88,7 @@ N_CLIENTS=100
 N_ROUNDS=100
 N_PART=10
 N_EVAL=10
-ALPHA=1.0
+ALPHA=0.1
 MODEL="Mobilenet_v2"
 
 # Loop over seeds and pretrain-rounds
