@@ -66,11 +66,7 @@ def main():
         sys.exit(1)
     
     date_folder = sys.argv[1]
-    outputs_path = Path("outputs") / date_folder
-    
-    if not outputs_path.exists():
-        print(f"Erro: Pasta {outputs_path} não existe!")
-        sys.exit(1)
+    outputs_path = Path(date_folder)
     
     # Agrupar dados por pretrain-rounds
     data_by_pretrain = defaultdict(list)

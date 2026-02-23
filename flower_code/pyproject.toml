@@ -73,7 +73,7 @@ prefer-time = "EQUAL" # SLOW, EQUAL, FAST
 # "speech_commands"
 hugginface-id = "uoft-cs/cifar10"
 dir-alpha = 1 #0.1, 0.3, 1.0
-batch-size = 8
+batch-size = 64
 
 # strategy — teste local minimal (poucos clientes/rodadas para passar do [INIT])
 aggregation-name = "fedavg"
