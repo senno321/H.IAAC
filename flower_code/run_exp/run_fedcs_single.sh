@@ -7,6 +7,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Em alguns ambientes (tmux/cluster), /home/$USER pode não ser gravável.
+# Redireciona caches/configs para uma pasta local do repositório quando necessário.
+if [ -z "${HOME:-}" ] || [ ! -w "${HOME:-/nonexistent}" ]; then
+  export HOME="$ROOT/.runhome"
+fi
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$XDG_CONFIG_HOME/matplotlib}"
+export HF_HOME="${HF_HOME:-$XDG_CACHE_HOME/huggingface}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$HF_HOME/datasets}"
+export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/transformers}"
+mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$MPLCONFIGDIR" \
+  "$HF_HOME" "$HF_DATASETS_CACHE" "$TRANSFORMERS_CACHE"
+
 # Auto-activate venv if present
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/venv/bin/activate" ]; then
   # shellcheck disable=SC1091
