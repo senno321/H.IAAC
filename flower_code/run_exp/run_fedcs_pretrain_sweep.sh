@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# FedCS pretrain-rounds sweep: 10, 50, 90 (multiple seeds).
+# FedCS pretrain-rounds sweep: 10, 50, 90 (2 seeds).
 # Model: MobileNet | Clients: 100 | Rounds: 100 | Participants/round: 10
-# Dirichlet alpha: 0.1 | Strategy: FedCS with pre-training | Seeds: 2, 3, 4
+# Dirichlet alpha: 0.1 | Strategy: FedCS with pre-training | Seeds: 2, 3
 #
 # Usage:
-#   ./run_exp/run_fedcs_pretrain_sweep.sh [federation] [--skip-setup] [--dry-run]
+#   ./run_exp/run_fedcs_pretrain_sweep.sh [federation] [--skip-setup] [--dry-run] [--pf=VALUE] [--pl=VALUE]
 #
 # Examples:
 #   ./run_exp/run_fedcs_pretrain_sweep.sh
 #   ./run_exp/run_fedcs_pretrain_sweep.sh gpu-sim-lrc
 #   ./run_exp/run_fedcs_pretrain_sweep.sh local-simulation-100 --skip-setup
 #   ./run_exp/run_fedcs_pretrain_sweep.sh --dry-run   # only print commands
+#   ./run_exp/run_fedcs_pretrain_sweep.sh --pf=0.4 --pl=0.15
 #
 # Federations:
 #   local-simulation-100  (default) 100 clients, CPU-only, for local runs.
@@ -46,10 +47,14 @@ fi
 FED="local-simulation-100"
 SKIP_SETUP=false
 DRY_RUN=false
+PF="0.8"
+PL="0.5"
 for arg in "$@"; do
   case "$arg" in
     --skip-setup) SKIP_SETUP=true ;;
     --dry-run)    DRY_RUN=true ;;
+    --pf=*)       PF="${arg#*=}" ;;
+    --pl=*)       PL="${arg#*=}" ;;
   esac
 done
 [[ -n "$1" && "$1" != --* ]] && FED="$1"
@@ -57,8 +62,9 @@ done
 echo "=== FedCS pretrain-rounds sweep (multiple seeds) ==="
 echo "Federation: $FED"
 echo "Pretrain-rounds: 10, 50, 90"
-echo "Seeds: 2, 3, 4"
+echo "Seeds: 2, 3"
 echo "Dir-alpha: 0.1 (balanced distribution)"
+echo "FedCS pf=$PF | pl=$PL"
 echo ""
 
 if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
@@ -70,7 +76,7 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   fi
 
   # Generate model/profiles for each seed
-  for SEED in 2 3 4; do
+  for SEED in 2 3; do
     echo ">> Creating model (seed=$SEED)..."
     PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed $SEED
 
@@ -92,10 +98,10 @@ ALPHA=0.1
 MODEL="Mobilenet_v2"
 
 # Loop over seeds and pretrain-rounds
-for SEED in 2 3 4; do
+for SEED in 2 3; do
   for PR in 10 50 90; do
     echo "=== SEED=$SEED pretrain-rounds=$PR ==="
-    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR batch-size=64 epochs=10"
+    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=$PR pf=$PF pl=$PL batch-size=64 epochs=10"
     if [ "$DRY_RUN" = true ]; then
       echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
     else
@@ -105,6 +111,6 @@ for SEED in 2 3 4; do
   done
 done
 
-echo "=== Sweep completo! Total: 9 experimentos (3 seeds × 3 pretrain-rounds) ==="
+echo "=== Sweep completo! Total: 6 experimentos (2 seeds × 3 pretrain-rounds) ==="
 echo ""
 echo "=== FedCS pretrain sweep finished ==="
