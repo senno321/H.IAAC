@@ -80,11 +80,27 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         dataset_id = self.context.run_config["hugginface-id"].split("/")[-1]
         seed = self.context.run_config["seed"]
         dir_alpha = self.context.run_config["dir-alpha"]
+        prune_rounds = self.context.run_config.get("prune-rounds", [])
+
+        prune_tag = ""
+        if selection_name == "fedcs_dynamic":
+            if isinstance(prune_rounds, str):
+                rounds = [x.strip() for x in prune_rounds.replace(";", ",").split(",") if x.strip()]
+            elif isinstance(prune_rounds, (list, tuple)):
+                rounds = [str(int(x)) for x in prune_rounds]
+            elif prune_rounds:
+                rounds = [str(int(prune_rounds))]
+            else:
+                rounds = []
+
+            if rounds:
+                prune_tag = f"_prune{'_'.join(rounds)}"
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"pretrain{self.pretrain_rounds}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"pretrain{self.pretrain_rounds}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")

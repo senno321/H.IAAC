@@ -1,6 +1,7 @@
 import ast
 import os
 import random
+import re
 
 try:
     import tomllib as toml
@@ -74,6 +75,7 @@ class ConfigRepository:
         cfg.setdefault("beta", 0.65)
         cfg.setdefault("pf", 0.5)
         cfg.setdefault("pl", 0.2)
+        cfg.setdefault("prune-rounds", "")
 
         # Processing
         # global
@@ -111,6 +113,17 @@ class ConfigRepository:
             cfg["pf"] = float(cfg["pf"])
         if "pl" in cfg:
             cfg["pl"] = float(cfg["pl"])
+        if "prune-rounds" in cfg:
+            if isinstance(cfg["prune-rounds"], str):
+                text = cfg["prune-rounds"].strip()
+                if text:
+                    cfg["prune-rounds"] = [int(x) for x in re.split(r"[;,\s]+", text) if x]
+                else:
+                    cfg["prune-rounds"] = []
+            elif isinstance(cfg["prune-rounds"], (list, tuple)):
+                cfg["prune-rounds"] = [int(x) for x in cfg["prune-rounds"]]
+            else:
+                cfg["prune-rounds"] = [int(cfg["prune-rounds"])]
 
         return cfg
 
@@ -126,6 +139,16 @@ class ConfigRepository:
             errors.append("num-classes > 1")
         if cfg["prefer-time"] not in ["SLOW", "EQUAL", "FAST", "UNIFORM", "QUICK"]:
             errors.append("Device training time distribution config (prefer-time) must be: SLOW, EQUAL, FAST, UNIFORM or QUICK")
+
+        if cfg.get("selection-name") == "fedcs_dynamic":
+            prune_rounds = cfg.get("prune-rounds", [])
+            if not prune_rounds:
+                errors.append("For selection-name=fedcs_dynamic, set prune-rounds with at least one round (e.g. \"10,50\")")
+            pretrain_rounds = int(cfg.get("pretrain-rounds", 0))
+            for prune_round in prune_rounds:
+                if int(prune_round) <= pretrain_rounds:
+                    errors.append(f"prune-rounds values must be > pretrain-rounds ({pretrain_rounds})")
+
         if errors:
             raise ValueError("Config errors:\n" + "\n".join(errors))
 

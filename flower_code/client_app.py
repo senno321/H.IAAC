@@ -39,7 +39,7 @@ def client_fn(context: Context):
             dataset_id=dataset_id
         ).to_client()
         
-    elif selection_name == "fedcs":
+    elif selection_name in ("fedcs", "fedcs_dynamic"):
         # Instancia o cliente do FedCS
         return FedCSClient(
             cid=cid, 

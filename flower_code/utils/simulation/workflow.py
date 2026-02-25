@@ -9,10 +9,22 @@ from torch.utils.data import DataLoader
 
 from server.strategy.fedavg_random_constant import FedAvgRandomConstant
 from server.strategy.fedcs_strategy import FedCSRandomConstant
+from server.strategy.fedcs_dynamic_strategy import FedCSDynamicRandomConstant
 
 from utils.dataset.partition import DatasetFactory
 from utils.model.manipulation import ModelPersistence, get_weights, set_weights, test
 from utils.simulation.config import ConfigRepository
+
+
+def _parse_prune_rounds(value) -> List[int]:
+    if isinstance(value, (list, tuple)):
+        return [int(v) for v in value]
+    if value is None:
+        return []
+    text = str(value).strip()
+    if not text:
+        return []
+    return [int(token.strip()) for token in text.split(",") if token.strip()]
 
 
 def config_preprocess_validation(context: Context):
@@ -218,6 +230,33 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     beta=beta,
                     pf=pf,
                     pl=pl,
+                    num_clients=num_clients,
+                    profiles=profiles,
+                    num_participants=num_participants,
+                    num_evaluators=num_evaluators,
+                    context=context,
+                    initial_parameters=initial_parameters,
+                    fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+                    evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
+                    on_fit_config_fn=on_fit_config_fn,
+                    on_eval_config_fn=on_eval_config_fn,
+                    evaluate_fn=evaluate_fn
+                )
+        elif selection_name == "fedcs_dynamic":
+            if participants_name == "constant":
+                pretrain_rounds = int(context.run_config.get("pretrain-rounds", 5))
+                beta = float(context.run_config.get("beta", 0.65))
+                pf = float(context.run_config.get("pf", 0.5))
+                pl = float(context.run_config.get("pl", 0.2))
+                prune_rounds = _parse_prune_rounds(context.run_config.get("prune-rounds", ""))
+
+                strategy = FedCSDynamicRandomConstant(
+                    repr="FedCSDynamicRandomConstant",
+                    pretrain_rounds=pretrain_rounds,
+                    beta=beta,
+                    pf=pf,
+                    pl=pl,
+                    prune_rounds=prune_rounds,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,
