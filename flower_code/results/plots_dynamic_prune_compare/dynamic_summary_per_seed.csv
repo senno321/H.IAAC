@@ -1,0 +1,5 @@
+experiment,prune,pretrain,seed,final_accuracy,energy_total_mJ
+fedcs_dynamic_prune_10_50_pretrain3_dirichlet_0.1,prune 10-50,3,2,0.350875,4470999534.416519
+fedcs_dynamic_prune_10_50_pretrain3_dirichlet_0.1,prune 10-50,3,3,0.273500,4438118055.569477
+fedcs_dynamic_prune_30_70_pretrain3_dirichlet_0.1,prune 30-70,3,2,0.305500,5601701645.679092
+fedcs_dynamic_prune_30_70_pretrain3_dirichlet_0.1,prune 30-70,3,3,0.284125,5086152769.455187

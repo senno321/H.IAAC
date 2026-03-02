@@ -1,0 +1,3 @@
+experiment,final_accuracy,energy_total_mJ
+random100_metrics_dirichlet_0.1,0.445750,8700904249.265884
+random100_metrics_dirichlet_1.0,0.621000,7030125813.919303
