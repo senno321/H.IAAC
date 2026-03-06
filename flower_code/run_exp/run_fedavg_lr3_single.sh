@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run single-seed FedCS com parâmetros centralizados (fácil de editar).
+# Run single-seed com parâmetros centralizados (fácil de editar).
+# Modo atual: FedAvg padrão, SEM poda de dataset.
+# Variante: testa 3 learning rates em sequência.
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -27,32 +29,28 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/venv/bin/activate" ]; then
 fi
 
 # =========================
-# Parâmetros editáveis do experimento
+# Configuração do experimento
 # =========================
-FEDERATION="local-simulation"
+FEDERATION="local-simulation-100"
+
 SEED=1
 N_CLIENTS=100
 N_ROUNDS=100
 N_PART=10
 N_EVAL=10
+
 ALPHA=0.1
-MODEL="simplecnn"
-NUM_CLASSES=10
+MODEL="Mobilenet_v2"
 BATCH=8
 EPOCHS=10
-INPUT_SHAPE="(3, 32, 32)"
 
-# Estratégia
+# Três learning rates para teste (Mobilenet_v2 em FL)
+LEARNING_RATES=("1e-4" "5e-4" "1e-3")
+
+# Estratégia (FedAvg padrão, sem poda)
 AGGREGATION_NAME="fedavg"
-SELECTION_NAME="fedcs"
+SELECTION_NAME="random"
 PARTICIPANTS_NAME="constant"
-
-# Parâmetros do FedCS (ajuste aqui)
-PRETRAIN_ROUNDS=3
-PF=0.5
-PL=0.2
-# Use vazio ("") para FedCS padrão; ex.: "10,50" para fedcs_dynamic
-PRUNE_ROUNDS=""
 
 # Se true, gera modelo/perfis antes do run
 PREPARE_MODEL_AND_PROFILE=true
@@ -60,11 +58,11 @@ PREPARE_MODEL_AND_PROFILE=true
 # Se true, imprime comando sem executar
 DRY_RUN=false
 
-echo "=== Single-seed FedCS run ==="
+echo "=== Single-seed standard train (FedAvg sem poda, 3 learning rates) ==="
 echo "federation=$FEDERATION seed=$SEED rounds=$N_ROUNDS clients=$N_CLIENTS participants=$N_PART"
-echo "alpha=$ALPHA model=$MODEL batch=$BATCH epochs=$EPOCHS input-shape=$INPUT_SHAPE"
+echo "alpha=$ALPHA model=$MODEL batch=$BATCH epochs=$EPOCHS"
 echo "aggregation=$AGGREGATION_NAME selection=$SELECTION_NAME participants=$PARTICIPANTS_NAME"
-echo "pretrain-rounds=$PRETRAIN_ROUNDS pf=$PF pl=$PL prune-rounds=${PRUNE_ROUNDS:-<none>}"
+echo "learning-rates=${LEARNING_RATES[*]}"
 echo
 
 if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
@@ -73,15 +71,10 @@ if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
   if [ -f pyproject.toml ]; then
     cp pyproject.toml pyproject.toml.bak
     HAS_BAK=true
-    sed -i "s/^num-clients = .*/num-clients = $N_CLIENTS/" pyproject.toml || true
+    sed -i 's/^num-clients = .*/num-clients = 100/' pyproject.toml || true
   fi
 
-  PYTHONPATH=. python gen_profile/gen_sim_model.py \
-    --config_file ./pyproject.toml \
-    --seed "$SEED" \
-    --model-name "$MODEL" \
-    --input-shape "$INPUT_SHAPE" \
-    --num-classes "$NUM_CLASSES"
+  PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed "$SEED"
   PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed "$SEED"
 
   # Restaura pyproject.toml original
@@ -90,7 +83,10 @@ if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
   fi
 fi
 
-RUN_CONFIG="seed=$SEED \
+for LR in "${LEARNING_RATES[@]}"; do
+  echo "--- Running learning-rate=$LR ---"
+
+  RUN_CONFIG="seed=$SEED \
 num-clients=$N_CLIENTS \
 num-rounds=$N_ROUNDS \
 num-participants=$N_PART \
@@ -100,22 +96,18 @@ selection-name=\"$SELECTION_NAME\" \
 participants-name=\"$PARTICIPANTS_NAME\" \
 aggregation-name=\"$AGGREGATION_NAME\" \
 model-name=\"$MODEL\" \
-input-shape=\"$INPUT_SHAPE\" \
-num-classes=$NUM_CLASSES \
-pretrain-rounds=$PRETRAIN_ROUNDS \
-pf=$PF \
-pl=$PL \
 batch-size=$BATCH \
-epochs=$EPOCHS"
+epochs=$EPOCHS \
+learning-rate=$LR"
 
-if [ -n "$PRUNE_ROUNDS" ]; then
-  RUN_CONFIG="$RUN_CONFIG prune-rounds=\"$PRUNE_ROUNDS\""
-fi
+  if [ "$DRY_RUN" = true ]; then
+    echo "flwr run . $FEDERATION --run-config=\"$RUN_CONFIG\""
+  else
+    flwr run . "$FEDERATION" --run-config="$RUN_CONFIG"
+  fi
 
-if [ "$DRY_RUN" = true ]; then
-  echo "flwr run . $FEDERATION --run-config=\"$RUN_CONFIG\""
-else
-  flwr run . "$FEDERATION" --run-config="$RUN_CONFIG"
-fi
+  echo "--- Done learning-rate=$LR ---"
+  echo
+done
 
-echo "=== Done: 1 run (single seed, FedCS) ==="
+echo "=== Done: 3 runs (single seed, FedAvg padrão) ==="

@@ -20,7 +20,7 @@
 # Ensure num-clients=100 and num-supernodes >= 100 for the chosen federation.
 # If the run hangs after [INIT], check "Freeze após [INIT]" in experiments/solution_metrics/fedcs_pretrain_sweep.md.
 
-set -e
+set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -57,7 +57,8 @@ for arg in "$@"; do
     --pl=*)       PL="${arg#*=}" ;;
   esac
 done
-[[ -n "$1" && "$1" != --* ]] && FED="$1"
+FIRST_ARG="${1:-}"
+[[ -n "$FIRST_ARG" && "$FIRST_ARG" != --* ]] && FED="$FIRST_ARG"
 
 echo "=== FedCS pretrain-rounds sweep (multiple seeds) ==="
 echo "Federation: $FED"
@@ -78,7 +79,12 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   # Generate model/profiles for each seed
   for SEED in 2; do
     echo ">> Creating model (seed=$SEED)..."
-    PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed $SEED
+    PYTHONPATH=. python gen_profile/gen_sim_model.py \
+      --config_file ./pyproject.toml \
+      --seed "$SEED" \
+      --model-name "$MODEL" \
+      --input-shape "$INPUT_SHAPE" \
+      --num-classes "$NUM_CLASSES"
 
     echo ">> Creating profiles (seed=$SEED, 100 clients)..."
     PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed $SEED
@@ -98,14 +104,15 @@ ALPHA=0.1
 MODEL="Mobilenet_v2"
 BATCH_SIZE=8
 INPUT_SHAPE="(3,224,224)"
+NUM_CLASSES=10
 
-echo "Model: $MODEL | Batch-size: $BATCH_SIZE | Input-shape: $INPUT_SHAPE"
+echo "Model: $MODEL | Batch-size: $BATCH_SIZE | Input-shape: $INPUT_SHAPE | Num-classes: $NUM_CLASSES"
 
 # Loop over seeds and pretrain-rounds
 for SEED in 2; do
   for PR in 10 50 90; do
     echo "=== SEED=$SEED pretrain-rounds=$PR ==="
-    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" pretrain-rounds=$PR pf=$PF pl=$PL batch-size=$BATCH_SIZE epochs=10"
+    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES pretrain-rounds=$PR pf=$PF pl=$PL batch-size=$BATCH_SIZE epochs=10"
     if [ "$DRY_RUN" = true ]; then
       echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
     else

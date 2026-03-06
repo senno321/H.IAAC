@@ -222,7 +222,7 @@ class ShakespeareDataset(TorchDataset):
 # ----------------------------------------------------------------------
 class DatasetFactory:
     _fds_cache: Dict[str, FederatedDataset] = {}
-    _fds_partition_cache: Dict[str, Dataset] = {}
+    _fds_partition_cache: Dict[Any, Any] = {}
     _pred_train_ids: List[int] = []  # num_partitions = 1129
     _pred_test_ids: List[int] = []
 
@@ -320,15 +320,19 @@ class DatasetFactory:
             alpha: float = 0.5,
             batch_size: int = 32,
             seed: int = 42,
+            input_shape=None,
     ) -> Any:
         """
         Returns train DataLoader for the requested partition.
         If as_tuple=True, returns (trainloader, testloader) splitting the partition.
         """
-        if partition_id not in cls._fds_partition_cache:
+        cache_key = (dataset_id, partition_id, num_partitions, float(alpha), batch_size, seed, str(input_shape))
+        if cache_key not in cls._fds_partition_cache:
             fds = cls._get_federated_dataset(dataset_id, num_partitions, alpha, seed)
             partition = fds.load_partition(partition_id)
-            partition_torch = partition.with_transform(DatasetConfig.get_transform(dataset_id, True))
+            partition_torch = partition.with_transform(
+                DatasetConfig.get_transform(dataset_id, True, input_shape=input_shape)
+            )
 
             g = torch.Generator()
             g.manual_seed(seed)
@@ -336,9 +340,9 @@ class DatasetFactory:
             trainloader = DataLoader(partition_torch, batch_size=batch_size, shuffle=True, num_workers=0,
                                      worker_init_fn=seed_worker, generator=g, drop_last=True)
 
-            cls._fds_partition_cache[partition_id] = trainloader
+            cls._fds_partition_cache[cache_key] = trainloader
         else:
-            trainloader = cls._fds_partition_cache[partition_id]
+            trainloader = cls._fds_partition_cache[cache_key]
 
         return trainloader
 
@@ -355,7 +359,8 @@ class DatasetFactory:
         Returns train DataLoader for the requested partition.
         If as_tuple=True, returns (trainloader, testloader) splitting the partition.
         """
-        if partition_id not in cls._fds_partition_cache:
+        cache_key = (dataset_id, partition_id, batch_size, seed)
+        if cache_key not in cls._fds_partition_cache:
             fds = cls._get_federated_dataset(dataset_id, seed=seed)
 
             real_id = cls._pred_train_ids[partition_id]
@@ -368,16 +373,17 @@ class DatasetFactory:
             trainloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0,
                                      worker_init_fn=seed_worker, generator=g, drop_last=True)
 
-            cls._fds_partition_cache[partition_id] = trainloader
+            cls._fds_partition_cache[cache_key] = trainloader
         else:
-            trainloader = cls._fds_partition_cache[partition_id]
+            trainloader = cls._fds_partition_cache[cache_key]
 
         return trainloader
 
     # ----------------- Speech Commands -----------------
     @classmethod
     def _get_audio_class_partition(cls, dataset_id, partition_id, batch_size, seed):
-        if partition_id not in cls._fds_partition_cache:
+        cache_key = (dataset_id, partition_id, batch_size, seed)
+        if cache_key not in cls._fds_partition_cache:
             remove_cols = "file,audio,label,is_unknown,speaker_id,utterance_id".split(",")
 
             fds = cls._get_federated_dataset(dataset_id, seed=seed)
@@ -444,9 +450,9 @@ class DatasetFactory:
                 collate_fn=crnn_collate,
             )
 
-            cls._fds_partition_cache[partition_id] = trainloader
+            cls._fds_partition_cache[cache_key] = trainloader
         else:
-            trainloader = cls._fds_partition_cache[partition_id]
+            trainloader = cls._fds_partition_cache[cache_key]
 
         return trainloader
 
@@ -460,9 +466,12 @@ class DatasetFactory:
             alpha: float = 0.5,
             batch_size: int = 32,
             seed: int = 42,
+            input_shape=None,
     ) -> Any:
         if dataset_id == "uoft-cs/cifar10":
-            return cls._get_img_class_partition(dataset_id, partition_id, num_partitions, alpha, batch_size, seed)
+            return cls._get_img_class_partition(
+                dataset_id, partition_id, num_partitions, alpha, batch_size, seed, input_shape=input_shape
+            )
         elif dataset_id == "flwrlabs/shakespeare":
             return cls._get_char_pred_partition(dataset_id, partition_id, batch_size, seed)
         elif dataset_id == "speech_commands":
@@ -482,13 +491,16 @@ class DatasetFactory:
             num_partitions: int = 10,
             alpha: float = 0.5,
             seed: int = 42,
-    ) -> (DataLoader, DataLoader):
+            input_shape=None,
+        ) -> tuple[DataLoader, DataLoader]:
         """
         Returns a DataLoader for the global test set (not partitioned).
         """
         if dataset_id == "uoft-cs/cifar10":
             fds = cls._get_federated_dataset(dataset_id, num_partitions, alpha, seed)
-            test_ds = fds.load_split("test").with_transform(DatasetConfig.get_transform(dataset_id, is_train=False))
+            test_ds = fds.load_split("test").with_transform(
+                DatasetConfig.get_transform(dataset_id, is_train=False, input_shape=input_shape)
+            )
 
             partition_proxy_test = test_ds.train_test_split(test_size=0.8, seed=seed)
             partition_proxy = partition_proxy_test["train"]

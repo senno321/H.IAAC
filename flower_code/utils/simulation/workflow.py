@@ -84,11 +84,14 @@ def get_central_testloader(context: Context):
     num_partitions = context.run_config["num-clients"]
     dir_alpha = context.run_config["dir-alpha"]
     seed = context.run_config["seed"]
+    input_shape = context.run_config.get("input-shape")
 
     g = torch.Generator()
     g.manual_seed(seed)
 
-    test_loader, proxy_loader = DatasetFactory.get_test_dataset(dataset_id, batch_size, num_partitions, dir_alpha, seed)
+    test_loader, proxy_loader = DatasetFactory.get_test_dataset(
+        dataset_id, batch_size, num_partitions, dir_alpha, seed, input_shape=input_shape
+    )
 
     return test_loader, proxy_loader
 
@@ -99,10 +102,13 @@ def get_user_dataloader(context: Context, cid):
     dir_alpha = context.run_config["dir-alpha"]
     batch_size = context.run_config["batch-size"]
     seed = context.run_config["seed"]
+    input_shape = context.run_config.get("input-shape")
     g = torch.Generator()
     g.manual_seed(seed)
 
-    dataloader = DatasetFactory.get_partition(dataset_id, cid, num_partitions, dir_alpha, batch_size, seed)
+    dataloader = DatasetFactory.get_partition(
+        dataset_id, cid, num_partitions, dir_alpha, batch_size, seed, input_shape=input_shape
+    )
 
     return dataloader
 
