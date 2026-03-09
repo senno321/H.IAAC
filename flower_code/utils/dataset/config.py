@@ -71,7 +71,9 @@ class DatasetConfig:
 
             hw = DatasetConfig._parse_hw_from_input_shape(input_shape)
             if hw is not None and hw != (32, 32):
-                steps.append(Resize(hw, interpolation=InterpolationMode.BILINEAR))
+                # Match the common MobileNet/CIFAR adaptation pipeline.
+                steps.append(Resize(256, interpolation=InterpolationMode.BILINEAR))
+                steps.append(CenterCrop(hw))
 
             if is_train:
                 steps.append(RandomHorizontalFlip())

@@ -135,18 +135,11 @@ def get_on_fit_config_fn(context: Context):
     learning_rate = float(context.run_config["learning-rate"])
     weight_decay = float(context.run_config["weight-decay"])
     participants_name = context.run_config["participants-name"]
-    decay_step = int(context.run_config["decay-step"])
     momentum = float(context.run_config["momentum"])
 
     def on_fit_config(server_round: int) -> Dict[str, Any]:
-        # testing fgn
-        if server_round % decay_step == 0:
-            mul_factor = server_round // decay_step
-            lr = learning_rate
-            for _ in range(mul_factor):
-                lr *= weight_decay
-        else:
-            lr = learning_rate
+        # Keep a stable LR unless an explicit scheduler is implemented.
+        lr = learning_rate
 
         return {"server_round": server_round, "epochs": epochs, "learning_rate": lr,
                 "weight_decay": weight_decay, "participants_name": participants_name,
