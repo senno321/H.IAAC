@@ -48,7 +48,14 @@ echo "pretrain-rounds list: ${PRETRAIN_LIST[*]} (pruning ~ 5,10,15)"
 echo
 
 # Gera modelo/perfis para o seed
-PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed "$SEED"
+PYTHONPATH=. python gen_profile/gen_sim_model.py \
+  --config_file ./pyproject.toml \
+  --seed "$SEED" \
+  --name "$MODEL" \
+  --sel "fedcs" \
+  --agg "fedavg" \
+  --input-shape "$INPUT_SHAPE" \
+  --num-classes "10"
 PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed "$SEED"
 
 for PR in "${PRETRAIN_LIST[@]}"; do
@@ -64,6 +71,7 @@ participants-name=\"constant\" \
 aggregation-name=\"fedavg\" \
 model-name=\"$MODEL\" \
 input-shape=\"$INPUT_SHAPE\" \
+num-classes=10 \
 pretrain-rounds=$PR \
 batch-size=$BATCH \
 epochs=$EPOCHS"

@@ -68,6 +68,16 @@ echo "Dir-alpha: 0.1 (unbalanced distribution)"
 echo "FedCS pf=$PF | pl=$PL"
 echo ""
 
+N_CLIENTS=100
+N_ROUNDS=100
+N_PART=10
+N_EVAL=10
+ALPHA=0.1
+MODEL="Mobilenet_v2"
+BATCH_SIZE=8
+INPUT_SHAPE="(3,224,224)"
+NUM_CLASSES=10
+
 if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   echo ">> Setting num-clients=100 for model/profile generation..."
   HAS_BAK=false
@@ -82,7 +92,9 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
     PYTHONPATH=. python gen_profile/gen_sim_model.py \
       --config_file ./pyproject.toml \
       --seed "$SEED" \
-      --model-name "$MODEL" \
+      --name "$MODEL" \
+      --sel "fedcs" \
+      --agg "fedavg" \
       --input-shape "$INPUT_SHAPE" \
       --num-classes "$NUM_CLASSES"
 
@@ -96,23 +108,13 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   echo ""
 fi
 
-N_CLIENTS=100
-N_ROUNDS=100
-N_PART=10
-N_EVAL=10
-ALPHA=0.1
-MODEL="Mobilenet_v2"
-BATCH_SIZE=8
-INPUT_SHAPE="(3,224,224)"
-NUM_CLASSES=10
-
 echo "Model: $MODEL | Batch-size: $BATCH_SIZE | Input-shape: $INPUT_SHAPE | Num-classes: $NUM_CLASSES"
 
 # Loop over seeds and pretrain-rounds
 for SEED in 2; do
   for PR in 10 50 90; do
     echo "=== SEED=$SEED pretrain-rounds=$PR ==="
-    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES pretrain-rounds=$PR pf=$PF pl=$PL batch-size=$BATCH_SIZE epochs=10"
+    RUN_CONFIG="seed=$SEED num-clients=100 num-rounds=100 num-participants=10 num-evaluators=10 dir-alpha=$ALPHA selection-name=\"fedcs\" participants-name=\"constant\" aggregation-name=\"fedavg\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES pretrain-rounds=$PR pf=$PF pl=$PL batch-size=$BATCH_SIZE epochs=10"
     if [ "$DRY_RUN" = true ]; then
       echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
     else

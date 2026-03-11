@@ -79,7 +79,9 @@ if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
   PYTHONPATH=. python gen_profile/gen_sim_model.py \
     --config_file ./pyproject.toml \
     --seed "$SEED" \
-    --model-name "$MODEL" \
+    --name "$MODEL" \
+    --sel "$SELECTION_NAME" \
+    --agg "$AGGREGATION_NAME" \
     --input-shape "$INPUT_SHAPE" \
     --num-classes "$NUM_CLASSES"
   PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed "$SEED"

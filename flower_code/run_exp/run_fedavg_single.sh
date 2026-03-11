@@ -40,6 +40,8 @@ N_EVAL=10
 
 ALPHA=0.1
 MODEL="Mobilenet_v2"
+NUM_CLASSES=10
+INPUT_SHAPE="(3,224,224)"
 BATCH=8
 EPOCHS=10
 
@@ -56,7 +58,7 @@ DRY_RUN=false
 
 echo "=== Single-seed standard train (FedAvg sem poda) ==="
 echo "federation=$FEDERATION seed=$SEED rounds=$N_ROUNDS clients=$N_CLIENTS participants=$N_PART"
-echo "alpha=$ALPHA model=$MODEL batch=$BATCH epochs=$EPOCHS"
+echo "alpha=$ALPHA model=$MODEL batch=$BATCH epochs=$EPOCHS input-shape=$INPUT_SHAPE"
 echo "aggregation=$AGGREGATION_NAME selection=$SELECTION_NAME participants=$PARTICIPANTS_NAME"
 echo
 
@@ -69,7 +71,14 @@ if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
     sed -i 's/^num-clients = .*/num-clients = 100/' pyproject.toml || true
   fi
 
-  PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed "$SEED"
+  PYTHONPATH=. python gen_profile/gen_sim_model.py \
+    --config_file ./pyproject.toml \
+    --seed "$SEED" \
+    --name "$MODEL" \
+    --sel "$SELECTION_NAME" \
+    --agg "$AGGREGATION_NAME" \
+    --input-shape "$INPUT_SHAPE" \
+    --num-classes "$NUM_CLASSES"
   PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed "$SEED"
 
   # Restaura pyproject.toml original
@@ -88,6 +97,8 @@ selection-name=\"$SELECTION_NAME\" \
 participants-name=\"$PARTICIPANTS_NAME\" \
 aggregation-name=\"$AGGREGATION_NAME\" \
 model-name=\"$MODEL\" \
+input-shape=\"$INPUT_SHAPE\" \
+num-classes=$NUM_CLASSES \
 batch-size=$BATCH \
 epochs=$EPOCHS"
 

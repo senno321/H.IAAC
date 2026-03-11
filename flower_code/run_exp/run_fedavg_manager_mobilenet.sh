@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run single-seed com parâmetros centralizados (fácil de editar).
-# Modo atual: FedAvg padrão, SEM poda de dataset.
-# Variante: testa 3 learning rates em sequência.
+# Manager-parity run for Mobilenet_v2 + CIFAR10 (FedAvg + random).
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Em alguns ambientes (tmux/cluster), /home/$USER pode não ser gravável.
-# Redireciona caches/configs para uma pasta local do repositório quando necessário.
 if [ -z "${HOME:-}" ] || [ ! -w "${HOME:-/nonexistent}" ]; then
   export HOME="$ROOT/.runhome"
 fi
@@ -22,17 +18,12 @@ export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/transformers}"
 mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$MPLCONFIGDIR" \
   "$HF_HOME" "$HF_DATASETS_CACHE" "$TRANSFORMERS_CACHE"
 
-# Auto-activate venv if present
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/venv/bin/activate" ]; then
   # shellcheck disable=SC1091
   source "$ROOT/venv/bin/activate"
 fi
 
-# =========================
-# Configuração do experimento
-# =========================
 FEDERATION="local-simulation-100"
-
 SEED=1
 N_CLIENTS=100
 N_ROUNDS=100
@@ -41,39 +32,31 @@ N_EVAL=10
 
 ALPHA=0.1
 MODEL="Mobilenet_v2"
-NUM_CLASSES=10
 INPUT_SHAPE="(3,224,224)"
-BATCH=8
+NUM_CLASSES=10
+BATCH=16
 EPOCHS=10
+LR="1e-2"
 
-# Três learning rates para teste (Mobilenet_v2 em FL)
-LEARNING_RATES=("1e-4" "5e-4" "1e-3")
-
-# Estratégia (FedAvg padrão, sem poda)
 AGGREGATION_NAME="fedavg"
 SELECTION_NAME="random"
 PARTICIPANTS_NAME="constant"
 
-# Se true, gera modelo/perfis antes do run
 PREPARE_MODEL_AND_PROFILE=true
-
-# Se true, imprime comando sem executar
 DRY_RUN=false
 
-echo "=== Single-seed standard train (FedAvg sem poda, 3 learning rates) ==="
+echo "=== Manager parity: Mobilenet_v2 + FedAvg/random ==="
 echo "federation=$FEDERATION seed=$SEED rounds=$N_ROUNDS clients=$N_CLIENTS participants=$N_PART"
-echo "alpha=$ALPHA model=$MODEL batch=$BATCH epochs=$EPOCHS input-shape=$INPUT_SHAPE"
-echo "aggregation=$AGGREGATION_NAME selection=$SELECTION_NAME participants=$PARTICIPANTS_NAME"
-echo "learning-rates=${LEARNING_RATES[*]}"
+echo "alpha=$ALPHA model=$MODEL input-shape=$INPUT_SHAPE num-classes=$NUM_CLASSES"
+echo "batch=$BATCH epochs=$EPOCHS lr=$LR"
 echo
 
 if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
-  # Ajusta num-clients temporariamente para gerar modelo/perfis consistentes
   HAS_BAK=false
   if [ -f pyproject.toml ]; then
     cp pyproject.toml pyproject.toml.bak
     HAS_BAK=true
-    sed -i 's/^num-clients = .*/num-clients = 100/' pyproject.toml || true
+    sed -i "s/^num-clients = .*/num-clients = $N_CLIENTS/" pyproject.toml || true
   fi
 
   PYTHONPATH=. python gen_profile/gen_sim_model.py \
@@ -84,18 +67,15 @@ if [ "$PREPARE_MODEL_AND_PROFILE" = true ]; then
     --agg "$AGGREGATION_NAME" \
     --input-shape "$INPUT_SHAPE" \
     --num-classes "$NUM_CLASSES"
+
   PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed "$SEED"
 
-  # Restaura pyproject.toml original
   if [ "$HAS_BAK" = true ] && [ -f pyproject.toml.bak ]; then
     mv pyproject.toml.bak pyproject.toml
   fi
 fi
 
-for LR in "${LEARNING_RATES[@]}"; do
-  echo "--- Running learning-rate=$LR ---"
-
-  RUN_CONFIG="seed=$SEED \
+RUN_CONFIG="seed=$SEED \
 num-clients=$N_CLIENTS \
 num-rounds=$N_ROUNDS \
 num-participants=$N_PART \
@@ -111,14 +91,10 @@ batch-size=$BATCH \
 epochs=$EPOCHS \
 learning-rate=$LR"
 
-  if [ "$DRY_RUN" = true ]; then
-    echo "flwr run . $FEDERATION --run-config=\"$RUN_CONFIG\""
-  else
-    flwr run . "$FEDERATION" --run-config="$RUN_CONFIG"
-  fi
+if [ "$DRY_RUN" = true ]; then
+  echo "flwr run . $FEDERATION --run-config=\"$RUN_CONFIG\""
+else
+  flwr run . "$FEDERATION" --run-config="$RUN_CONFIG"
+fi
 
-  echo "--- Done learning-rate=$LR ---"
-  echo
-done
-
-echo "=== Done: 3 runs (single seed, FedAvg padrão) ==="
+echo "=== Done: manager parity run ==="

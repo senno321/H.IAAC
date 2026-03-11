@@ -238,7 +238,7 @@ class DatasetFactory:
                     partition_by="label",
                     alpha=alpha,
                     seed=seed,
-                    min_partition_size=0,
+                    min_partition_size=1,
                 )
                 fds = FederatedDataset(
                     dataset=dataset_id,
@@ -338,7 +338,7 @@ class DatasetFactory:
             g.manual_seed(seed)
 
             trainloader = DataLoader(partition_torch, batch_size=batch_size, shuffle=True, num_workers=0,
-                                     worker_init_fn=seed_worker, generator=g, drop_last=True)
+                                     worker_init_fn=seed_worker, generator=g, drop_last=False)
 
             cls._fds_partition_cache[cache_key] = trainloader
         else:

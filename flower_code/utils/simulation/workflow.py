@@ -1,5 +1,6 @@
 import ast
 import json
+from pathlib import Path
 from typing import Dict, Any, List, Tuple, Callable
 
 import torch
@@ -14,6 +15,29 @@ from server.strategy.fedcs_dynamic_strategy import FedCSDynamicRandomConstant
 from utils.dataset.partition import DatasetFactory
 from utils.model.manipulation import ModelPersistence, get_weights, set_weights, test
 from utils.simulation.config import ConfigRepository
+
+
+def _resolve_model_path(context: Context) -> str:
+    model_name = context.run_config['model-name']
+    root_model_dir = Path(context.run_config["root-model-dir"])
+
+    seed = context.run_config["seed"]
+    selection_name = context.run_config["selection-name"]
+    aggregation_name = context.run_config["aggregation-name"]
+    manager_name = f"{model_name}_{selection_name}_{aggregation_name}_{seed}.pth"
+    manager_path = root_model_dir / manager_name
+    if not manager_path.exists():
+        raise FileNotFoundError(
+            f"Initial model not found at '{manager_path}'. "
+            "Generate it with gen_profile/gen_sim_model.py using matching seed/selection/aggregation."
+        )
+    return str(manager_path)
+
+
+def _parse_input_shape(value):
+    if isinstance(value, str):
+        return ast.literal_eval(value)
+    return value
 
 
 def _parse_prune_rounds(value) -> List[int]:
@@ -35,10 +59,9 @@ def config_preprocess_validation(context: Context):
 
 def get_initial_parameters(context: Context):
     model_name = context.run_config['model-name']
-    input_shape = context.run_config['input-shape']
+    input_shape = _parse_input_shape(context.run_config['input-shape'])
     num_classes = context.run_config['num-classes']
-    root_model_dir = context.run_config["root-model-dir"]
-    model_path = root_model_dir + model_name + '.pth'
+    model_path = _resolve_model_path(context)
     loaded_model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
     ndarrays = get_weights(loaded_model)
     parameters = ndarrays_to_parameters(ndarrays)
@@ -48,10 +71,9 @@ def get_initial_parameters(context: Context):
 
 def get_initial_model(context: Context):
     model_name = context.run_config['model-name']
-    input_shape = ast.literal_eval(context.run_config['input-shape'])
+    input_shape = _parse_input_shape(context.run_config['input-shape'])
     num_classes = context.run_config['num-classes']
-    root_model_dir = context.run_config["root-model-dir"]
-    model_path = root_model_dir + model_name + '.pth'
+    model_path = _resolve_model_path(context)
     loaded_model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
 
     return loaded_model
@@ -68,10 +90,9 @@ def get_model_memory_size_bits(context: Context):
         int: Model size in bits.
     """
     model_name = context.run_config['model-name']
-    input_shape = context.run_config['input-shape']
+    input_shape = _parse_input_shape(context.run_config['input-shape'])
     num_classes = context.run_config['num-classes']
-    root_model_dir = context.run_config["root-model-dir"]
-    model_path = root_model_dir + model_name + '.pth'
+    model_path = _resolve_model_path(context)
     model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
     size_in_bits = sum(p.numel() * p.element_size() * 8 for p in model.parameters())
 
@@ -117,10 +138,9 @@ def get_eval_fn(context: Context, test_loader: DataLoader):
     def evaluate(server_round, parameters_ndarrays, config):
         dataset_id = context.run_config['hugginface-id']
         model_name = context.run_config['model-name']
-        input_shape = context.run_config['input-shape']
+        input_shape = _parse_input_shape(context.run_config['input-shape'])
         num_classes = context.run_config['num-classes']
-        root_model_dir = context.run_config["root-model-dir"]
-        model_path = root_model_dir + model_name + '.pth'
+        model_path = _resolve_model_path(context)
         model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
         set_weights(model, parameters_ndarrays)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -197,6 +217,7 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
     num_participants = int(context.run_config["num-participants"])
     num_evaluators = int(context.run_config["num-evaluators"])
     profiles = get_profiles(context)
+    strategy = None
 
     if aggregation_name == "fedavg":
         if selection_name == "random":
@@ -268,6 +289,12 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     on_eval_config_fn=on_eval_config_fn,
                     evaluate_fn=evaluate_fn
                 )
+
+    if strategy is None:
+        raise ValueError(
+            f"Unsupported strategy combination: aggregation={aggregation_name}, "
+            f"selection={selection_name}, participants={participants_name}"
+        )
     return strategy
 
 

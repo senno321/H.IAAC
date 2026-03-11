@@ -63,7 +63,14 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
 
   for SEED in 2 3; do
     echo ">> Creating model (seed=$SEED)..."
-    PYTHONPATH=. python gen_profile/gen_sim_model.py --config_file ./pyproject.toml --seed $SEED
+    PYTHONPATH=. python gen_profile/gen_sim_model.py \
+      --config_file ./pyproject.toml \
+      --seed "$SEED" \
+      --name "Mobilenet_v2" \
+      --sel "fedcs_dynamic" \
+      --agg "fedavg" \
+      --input-shape "(3,224,224)" \
+      --num-classes "10"
 
     echo ">> Creating profiles (seed=$SEED, 100 clients)..."
     PYTHONPATH=. python gen_profile/gen_sim_profile.py --config_file ./pyproject.toml --seed $SEED
@@ -77,6 +84,8 @@ fi
 
 ALPHA=0.1
 MODEL="Mobilenet_v2"
+INPUT_SHAPE="(3,224,224)"
+NUM_CLASSES=10
 N_CLIENTS=100
 N_ROUNDS=100
 N_PART=10
@@ -85,7 +94,7 @@ N_EVAL=10
 for SEED in 2 3; do
   for SCHEDULE in "10,50" "30,70"; do
     echo "=== SEED=$SEED prune-rounds=$SCHEDULE ==="
-    RUN_CONFIG="seed=$SEED num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL dir-alpha=$ALPHA selection-name=\"fedcs_dynamic\" participants-name=\"constant\" model-name=\"$MODEL\" pretrain-rounds=3 prune-rounds=\"$SCHEDULE\" pf=$PF pl=$PL batch-size=64 epochs=10"
+    RUN_CONFIG="seed=$SEED num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL dir-alpha=$ALPHA selection-name=\"fedcs_dynamic\" participants-name=\"constant\" aggregation-name=\"fedavg\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES pretrain-rounds=3 prune-rounds=\"$SCHEDULE\" pf=$PF pl=$PL batch-size=64 epochs=10"
     if [ "$DRY_RUN" = true ]; then
       echo "flwr run . $FED --run-config=\"$RUN_CONFIG\""
     else

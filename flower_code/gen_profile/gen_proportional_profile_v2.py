@@ -2,6 +2,8 @@ import sys
 import json
 import torch
 import utils
+from pathlib import Path
+from utils.simulation.config import ConfigRepository
 from utils.model.factory import ModelFactory
 from utils.model.manipulation import ModelPersistence
 
@@ -11,7 +13,14 @@ sys.path.append('./')
 def get_model_params(model_name, input_shape, num_classes):
     """Carrega um modelo e conta seus parâmetros."""
     print(f"Modelo: {model_name}")
-    model_path = f"./model/{model_name}.pth"
+    config_repo = ConfigRepository("./pyproject.toml")
+    cfg = config_repo.preprocess_app_config(config_repo.get_app_config())
+    seed = cfg["seed"]
+    selection = cfg["selection-name"]
+    aggregation = cfg["aggregation-name"]
+    manager_path = Path(f"./model/{model_name}_{selection}_{aggregation}_{seed}.pth")
+    legacy_path = Path(f"./model/{model_name}.pth")
+    model_path = str(manager_path if manager_path.exists() else legacy_path)
     model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Parâmetros: {params}")
