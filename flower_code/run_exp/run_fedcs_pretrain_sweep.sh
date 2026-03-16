@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FedCS pretrain-rounds sweep: 10, 50, 90 (1 seed).
-# Model: MobileNet | Clients: 100 | Rounds: 100 | Participants/round: 10
+# Model: ShuffleNet | Clients: 100 | Rounds: 100 | Participants/round: 10
 # Dirichlet alpha: 0.1 | Strategy: FedCS with pre-training | Seeds: 2
 #
 # Usage:
@@ -73,7 +73,7 @@ N_ROUNDS=100
 N_PART=10
 N_EVAL=10
 ALPHA=0.1
-MODEL="Mobilenet_v2"
+MODEL="Shufflenet_v2_x0_5"
 BATCH_SIZE=8
 INPUT_SHAPE="(3,224,224)"
 NUM_CLASSES=10
@@ -84,6 +84,7 @@ if [ "$SKIP_SETUP" = false ] && [ "$DRY_RUN" = false ]; then
   if [ -f pyproject.toml ]; then
     cp pyproject.toml pyproject.toml.bak && HAS_BAK=true
     sed -i 's/^num-clients = .*/num-clients = 100/' pyproject.toml || true
+    sed -i 's|^devices-profile-path = .*|devices-profile-path = "./utils/profile/Shufflenet_v2_x0_5.json"|' pyproject.toml || true
   fi
 
   # Generate model/profiles for each seed
