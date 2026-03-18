@@ -47,8 +47,8 @@ fi
 FED="local-simulation-100"
 SKIP_SETUP=false
 DRY_RUN=false
-PF="0.5"
-PL="0.2"
+PF="0.8"
+PL="0.5"
 for arg in "$@"; do
   case "$arg" in
     --skip-setup) SKIP_SETUP=true ;;
