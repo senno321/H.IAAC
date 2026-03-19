@@ -47,8 +47,8 @@ fi
 FED="local-simulation-100"
 SKIP_SETUP=false
 DRY_RUN=false
-PF="0.8"
-PL="0.5"
+PF="0.5"
+PL="0.2"
 for arg in "$@"; do
   case "$arg" in
     --skip-setup) SKIP_SETUP=true ;;
@@ -64,7 +64,7 @@ echo "=== FedCS pretrain-rounds sweep (multiple seeds) ==="
 echo "Federation: $FED"
 echo "Pretrain-rounds: 10, 50, 90"
 echo "Seeds: 1"
-echo "Dir-alpha: 0.1 (unbalanced distribution)"
+echo "Dir-alpha: 1 (balanced distribution)"
 echo "FedCS pf=$PF | pl=$PL"
 echo ""
 
@@ -72,7 +72,7 @@ N_CLIENTS=100
 N_ROUNDS=100
 N_PART=10
 N_EVAL=10
-ALPHA=0.1
+ALPHA=1
 MODEL="Shufflenet_v2_x0_5"
 BATCH_SIZE=8
 INPUT_SHAPE="(3,224,224)"
