@@ -43,7 +43,7 @@ root-outputs-dir = "./outputs/"
 # "./utils/profile/Lstm.json"
 # "./utils/profile/CRNNResNetAttn.json"
 # "./utils/profile/simplecnn_scaled.json"
-devices-profile-path = "./utils/profile/Mobilenet_v2.json"
+devices-profile-path = "./utils/profile/Shufflenet_v2_x0_5.json"
 
 # MODELS — teste local minimal com Mobilenet_v2
 # "simplecnn"
@@ -52,14 +52,14 @@ devices-profile-path = "./utils/profile/Mobilenet_v2.json"
 # "Resnext50_32x4d"
 # "Lstm"
 # "CRNNResNetAttn"
-model-name = "simplecnn"
+model-name = "Shufflenet_v2_x0_5"
 # shape: CIFAR10 32x32 vs ImageNet-style 224x224 (Mobilenet)
 #input-shape = "(3, 32, 32)"
 input-shape = "(3,224,224)"
 # classes
 num-classes = 10 #CRNNResNetAttn: 12 Lstm: - Others: 10
 # model independent
-epochs = 1 #real deploy: 5
+epochs = 10 #real deploy: 5
 learning-rate = 1e-2 #CRNNResNetAttn: 3e-4 Others: 1e-3
 weight-decay = 1e-5
 decay-step = 10
@@ -81,9 +81,9 @@ participants-name = "constant"
 selection-name = "fedcs"
 
 num-clients = 100
-num-rounds = 10
-num-participants = 3
-num-evaluators = 2
+num-rounds = 100
+num-participants = 10
+num-evaluators = 10
 num-candidates = 2
 
 #TwoPhase
@@ -103,14 +103,14 @@ prioritize-sim = true
 #FedCS
 # *selection-name = "fedcs"
 # Para poda dinâmica, use: selection-name = "fedcs_dynamic"
-pretrain-rounds = 3      # teste minimal (also acts as max when adaptive-pretrain=true)
+pretrain-rounds = 90     # acts as max when adaptive-pretrain=true
 beta = 0.65              # Limiar para considerar uma classe como "Large-Capacity"
 pf = 0.5                 # Taxa de poda alta (para classes grandes)
 pl = 0.2                 # Taxa de poda baixa (para classes pequenas/restantes)
 prune-rounds = ""        # Ex.: "10,50" ou "30,70" (usado em fedcs_dynamic)
 
 # Adaptive pretrain (only used when adaptive-pretrain = true)
-adaptive-pretrain = false   # toggle: auto-detect when to stop pretraining
+adaptive-pretrain = true    # toggle: auto-detect when to stop pretraining
 min-pretrain-rounds = 20    # minimum pretrain rounds before checking convergence
 pretrain-tau = 0.02         # MA improvement threshold to consider "plateau"
 pretrain-window = 10        # sliding window size for MA comparison
