@@ -27,37 +27,103 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         beta: float = 0.65,
         pf: float = 0.5,
         pl: float = 0.2,
+        adaptive_pretrain: bool = False,
+        min_pretrain_rounds: int = 20,
+        pretrain_tau: float = 0.02,
+        pretrain_window: int = 10,
         **kwargs,
     ):
-        
-        # Se a pasta existir, apaga tudo para começar do zero
         cache_path = ".cache_fedcs"
         if os.path.exists(cache_path):
             shutil.rmtree(cache_path, ignore_errors=True)
             print(f">>> [Auto-Clean] Pasta '{cache_path}' limpa para o novo experimento.")
 
-        """
-        Estratégia FedCS que gerencia as fases de Seleção e Poda.
-        Recebe os hiperparâmetros definidos no workflow.py.
-        """
         super().__init__(**kwargs)
         self.pretrain_rounds = pretrain_rounds
         self.beta = beta
         self.pf = pf
         self.pl = pl
-        
+
+        self.adaptive_pretrain = adaptive_pretrain
+        self.min_pretrain_rounds = min_pretrain_rounds
+        self.pretrain_tau = pretrain_tau
+        self.pretrain_window = pretrain_window
+        self._transition_round: Optional[int] = None
+
         self.global_class_centers = None
         self.last_weights = None
         self.prune_event_id = 0
 
+        if self.adaptive_pretrain:
+            log.info(
+                "FedCS adaptive pretrain ENABLED: min=%d, max=%d, window=%d, tau=%.4f",
+                self.min_pretrain_rounds, self.pretrain_rounds,
+                self.pretrain_window, self.pretrain_tau,
+            )
+
     def _get_phase(self, server_round: int) -> str:
-        if server_round <= self.pretrain_rounds:
+        if not self.adaptive_pretrain:
+            if server_round <= self.pretrain_rounds:
+                return "pretrain"
+            if server_round == self.pretrain_rounds + 1:
+                return "selection"
+            if server_round == self.pretrain_rounds + 2:
+                return "pruning"
+            return "fine_tuning"
+
+        # --- Adaptive pretrain logic ---
+
+        # Already triggered: use the recorded transition round
+        if self._transition_round is not None:
+            if server_round == self._transition_round:
+                return "selection"
+            if server_round == self._transition_round + 1:
+                return "pruning"
+            if server_round > self._transition_round + 1:
+                return "fine_tuning"
             return "pretrain"
-        if server_round == self.pretrain_rounds + 1:
+
+        # Haven't reached minimum yet
+        if server_round <= self.min_pretrain_rounds:
+            return "pretrain"
+
+        # Hit the max cap — force transition
+        if server_round > self.pretrain_rounds:
+            self._transition_round = server_round
+            log.info("FedCS adaptive pretrain: MAX reached at round %d, forcing selection.", server_round)
             return "selection"
-        if server_round == self.pretrain_rounds + 2:
-            return "pruning"
-        return "fine_tuning"
+
+        # Check convergence using 10-round Moving Average comparison.
+        # Requires 2*window rounds of accuracy data.
+        W = self.pretrain_window
+        if server_round >= 2 * W:
+            metrics = self.performance_metrics_to_save
+            current_window = [
+                metrics[r]["cen_accuracy"]
+                for r in range(server_round - W, server_round)
+                if r in metrics and "cen_accuracy" in metrics[r]
+            ]
+            previous_window = [
+                metrics[r]["cen_accuracy"]
+                for r in range(server_round - 2 * W, server_round - W)
+                if r in metrics and "cen_accuracy" in metrics[r]
+            ]
+
+            if len(current_window) >= W and len(previous_window) >= W:
+                ma_current = sum(current_window) / len(current_window)
+                ma_previous = sum(previous_window) / len(previous_window)
+                improvement = ma_current - ma_previous
+
+                if improvement < self.pretrain_tau:
+                    self._transition_round = server_round
+                    log.info(
+                        "FedCS adaptive pretrain: plateau detected at round %d "
+                        "(MA improvement %.4f < tau %.4f). Triggering selection.",
+                        server_round, improvement, self.pretrain_tau,
+                    )
+                    return "selection"
+
+        return "pretrain"
 
     def _configure_all_clients_fit(
         self, parameters: Parameters, client_manager, config: Dict[str, Scalar]
@@ -96,11 +162,16 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             if rounds:
                 prune_tag = f"_prune{'_'.join(rounds)}"
 
+        if self.adaptive_pretrain:
+            pretrain_label = f"pretrainAdaptive_min{self.min_pretrain_rounds}_max{self.pretrain_rounds}"
+        else:
+            pretrain_label = f"pretrain{self.pretrain_rounds}"
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"pretrain{self.pretrain_rounds}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")

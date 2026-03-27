@@ -76,6 +76,10 @@ class ConfigRepository:
         cfg.setdefault("pf", 0.5)
         cfg.setdefault("pl", 0.2)
         cfg.setdefault("prune-rounds", "")
+        cfg.setdefault("adaptive-pretrain", False)
+        cfg.setdefault("min-pretrain-rounds", 20)
+        cfg.setdefault("pretrain-tau", 0.02)
+        cfg.setdefault("pretrain-window", 10)
 
         # Processing
         # global
@@ -113,6 +117,15 @@ class ConfigRepository:
             cfg["pf"] = float(cfg["pf"])
         if "pl" in cfg:
             cfg["pl"] = float(cfg["pl"])
+        if "adaptive-pretrain" in cfg:
+            v = cfg["adaptive-pretrain"]
+            cfg["adaptive-pretrain"] = v if isinstance(v, bool) else str(v).lower() in ("true", "1", "yes")
+        if "min-pretrain-rounds" in cfg:
+            cfg["min-pretrain-rounds"] = int(cfg["min-pretrain-rounds"])
+        if "pretrain-tau" in cfg:
+            cfg["pretrain-tau"] = float(cfg["pretrain-tau"])
+        if "pretrain-window" in cfg:
+            cfg["pretrain-window"] = int(cfg["pretrain-window"])
         if "prune-rounds" in cfg:
             if isinstance(cfg["prune-rounds"], str):
                 text = cfg["prune-rounds"].strip()

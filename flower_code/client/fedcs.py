@@ -246,8 +246,16 @@ class FedCSClient(BaseClient):
         pl: float,
     ):
         """
-        Aplica a lógica de poda usando os parâmetros recebidos do TOML.
-        SALVA os índices em disco para persistência entre rodadas.
+        Paper-faithful double pruning (Algorithm 1 from FedCS, CVPR 2025).
+
+        Phase 1: Pool ALL samples from large-capacity classes (n_k > beta * n_kmax),
+                 rank them cross-class by DC score, and remove the top pf fraction
+                 (highest DC scores).
+        Phase 2: From the remaining dataset (small classes + surviving large-class
+                 samples), rank cross-class by DC score, and remove the top pl
+                 fraction (highest DC scores).
+
+        Saves pruning indices to disk for persistence across Flower rounds.
         """
         features, labels = self._get_features_and_labels()
         if len(features) == 0:
@@ -260,57 +268,79 @@ class FedCSClient(BaseClient):
             return
 
         centers_matrix = np.array([global_centers[k] for k in classes_global])
-        
+
+        # --- DC Score computation (Eqs. 7-9) ---
         dists = cdist(features, centers_matrix, metric='euclidean')
-        dc_scores = []
+        dc_scores = np.full(len(features), 9999.0)
 
         for i in range(len(features)):
             label = int(labels[i])
             if label not in classes_global:
-                dc_scores.append(9999.0) 
                 continue
 
             cls_idx = classes_global.index(label)
             d_correct = dists[i, cls_idx]
-            
+
             dists_copy = dists[i].copy()
             dists_copy[cls_idx] = np.inf
             d_min = np.min(dists_copy)
-            
-            score = abs(d_min - d_correct)
-            dc_scores.append(score)
 
-        dc_scores = np.array(dc_scores)
-        
+            dc_scores[i] = abs(d_min - d_correct)
+
+        # --- Double Pruning (Algorithm 1, lines 17-21) ---
+        all_indices = np.arange(len(features))
         unique, counts = np.unique(labels, return_counts=True)
+        count_map = dict(zip(unique, counts))
         max_samples = max(counts) if len(counts) > 0 else 0
-        
-        # Limiar calculado com o beta do TOML
         threshold = beta * max_samples
-        
-        indices_to_keep = []
 
+        large_classes = {cls for cls in unique if count_map[cls] > threshold}
+
+        # Phase 1: high-ratio pruning on large-capacity classes (Eq. 10-12)
+        large_mask = np.isin(labels, list(large_classes))
+        large_indices = all_indices[large_mask]
+
+        if len(large_indices) > 0:
+            large_scores = dc_scores[large_indices]
+            sorted_order = np.argsort(large_scores)
+            large_sorted = large_indices[sorted_order]
+
+            mf = int(len(large_indices) * pf)
+            # Top-Mf = highest DC scores = last mf elements after ascending sort
+            phase1_remove = set(large_sorted[len(large_sorted) - mf:]) if mf > 0 else set()
+        else:
+            phase1_remove = set()
+
+        # D_r = D_i \ D_pf (remaining after phase 1)
+        remaining_mask = np.ones(len(features), dtype=bool)
+        for idx in phase1_remove:
+            remaining_mask[idx] = False
+        remaining_indices = all_indices[remaining_mask]
+
+        # Phase 2: low-ratio pruning on remaining dataset (cross-class)
+        if len(remaining_indices) > 0:
+            remaining_scores = dc_scores[remaining_indices]
+            sorted_order = np.argsort(remaining_scores)
+            remaining_sorted = remaining_indices[sorted_order]
+
+            ml = int(len(remaining_indices) * pl)
+            phase2_remove = set(remaining_sorted[len(remaining_sorted) - ml:]) if ml > 0 else set()
+        else:
+            phase2_remove = set()
+
+        # D*_i = D_r \ D_pl (final coreset)
+        all_removed = phase1_remove | phase2_remove
+        indices_to_keep = sorted([i for i in all_indices if i not in all_removed])
+
+        # Guarantee at least 1 sample per class present on this client
         for cls in unique:
             cls_indices = np.where(labels == cls)[0]
-            cls_scores = dc_scores[cls_indices]
-            
-            sorted_idx_local = np.argsort(cls_scores)
-            sorted_global_indices = cls_indices[sorted_idx_local]
-            
-            n_samples = len(cls_indices)
-            
-            # Taxas de poda dinâmicas (pf e pl do TOML)
-            if n_samples > threshold:
-                k = int(n_samples * (1 - pf))
-            else:
-                k = int(n_samples * (1 - pl))
-            
-            k = max(1, k)
-            indices_to_keep.extend(sorted_global_indices[:k])
-            
-        indices_to_keep = sorted(list(set(indices_to_keep)))
-        
-        # --- PERSISTÊNCIA: SALVAR EM DISCO ---
+            if not any(i in indices_to_keep for i in cls_indices):
+                best = cls_indices[np.argmin(dc_scores[cls_indices])]
+                indices_to_keep.append(int(best))
+        indices_to_keep = sorted(set(indices_to_keep))
+
+        # --- Persistence: save to disk ---
         try:
             payload = {
                 "event_id": prune_event_id,
@@ -325,10 +355,14 @@ class FedCSClient(BaseClient):
         except Exception as e:
             log.error(f"Client {self.cid}: Failed to save pruning indices: {e}")
 
-        # Atualiza o DataLoader atual
         self._recreate_dataloader(indices_to_keep)
         self.is_pruned = True
         self.last_prune_event_id = prune_event_id
-        
-        # Print para aparecer no log
-        print(f" >>> [FedCS] Pruned dataset: {len(features)} -> {len(indices_to_keep)} samples (beta={beta}, pf={pf}, pl={pl})")
+
+        n_phase1 = len(phase1_remove)
+        n_phase2 = len(phase2_remove)
+        print(
+            f" >>> [FedCS] Double pruning: {len(features)} -> {len(indices_to_keep)} samples "
+            f"(phase1 removed {n_phase1} from large classes, phase2 removed {n_phase2} from remaining, "
+            f"beta={beta}, pf={pf}, pl={pl})"
+        )

@@ -238,11 +238,14 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 )
         elif selection_name == "fedcs":
             if participants_name == "constant":
-                # FedCS hyperparameters
                 pretrain_rounds = int(context.run_config.get("pretrain-rounds", 5))
                 beta = float(context.run_config.get("beta", 0.65))
                 pf = float(context.run_config.get("pf", 0.5))
                 pl = float(context.run_config.get("pl", 0.2))
+                adaptive_pretrain = bool(context.run_config.get("adaptive-pretrain", False))
+                min_pretrain_rounds = int(context.run_config.get("min-pretrain-rounds", 20))
+                pretrain_tau = float(context.run_config.get("pretrain-tau", 0.02))
+                pretrain_window = int(context.run_config.get("pretrain-window", 10))
 
                 strategy = FedCSRandomConstant(
                     repr="FedCSRandomConstant",
@@ -250,6 +253,10 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     beta=beta,
                     pf=pf,
                     pl=pl,
+                    adaptive_pretrain=adaptive_pretrain,
+                    min_pretrain_rounds=min_pretrain_rounds,
+                    pretrain_tau=pretrain_tau,
+                    pretrain_window=pretrain_window,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,

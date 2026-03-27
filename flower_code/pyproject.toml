@@ -103,11 +103,17 @@ prioritize-sim = true
 #FedCS
 # *selection-name = "fedcs"
 # Para poda dinâmica, use: selection-name = "fedcs_dynamic"
-pretrain-rounds = 3      # teste minimal
+pretrain-rounds = 3      # teste minimal (also acts as max when adaptive-pretrain=true)
 beta = 0.65              # Limiar para considerar uma classe como "Large-Capacity"
 pf = 0.5                 # Taxa de poda alta (para classes grandes)
 pl = 0.2                 # Taxa de poda baixa (para classes pequenas/restantes)
 prune-rounds = ""        # Ex.: "10,50" ou "30,70" (usado em fedcs_dynamic)
+
+# Adaptive pretrain (only used when adaptive-pretrain = true)
+adaptive-pretrain = false   # toggle: auto-detect when to stop pretraining
+min-pretrain-rounds = 20    # minimum pretrain rounds before checking convergence
+pretrain-tau = 0.02         # MA improvement threshold to consider "plateau"
+pretrain-window = 10        # sliding window size for MA comparison
 
 [tool.flwr.federations]
 default = "local-simulation"
