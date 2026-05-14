@@ -208,7 +208,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         if phase == "pruning" and self.global_class_centers is not None:
             config["global_centers"] = pickle.dumps(self.global_class_centers)
 
-        if phase == "pruning":
+        if phase in ("selection", "pruning"):
             return self._configure_all_clients_fit(parameters, client_manager, config)
 
         # Chama o configure_fit da classe mãe para selecionar clientes
@@ -233,7 +233,13 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         # Fase de Seleção: Agrega Centros de Classe
         if phase == "selection":
             log.info("FedCS: Aggregating Class Centers (Selection Phase)")
-            
+
+            if server_round > 1:
+                cids_joules_consumption, selected_cids_training_time, max_round_training_time = \
+                    self.get_cids_training_energy_and_time(results)
+                self.save_round_system_metrics(cids_joules_consumption, selected_cids_training_time,
+                                               max_round_training_time, server_round)
+
             all_local_centers = []
             for _, fit_res in results:
                 if "local_centers" in fit_res.metrics:
@@ -245,10 +251,8 @@ class FedCSRandomConstant(FedAvgRandomConstant):
 
             if not all_local_centers:
                 log.warning("FedCS: No class centers received! Skipping aggregation.")
-                # Retorna pesos anteriores para não quebrar o loop
                 return self.last_weights, {}
 
-            # Agrupa por classe
             centers_per_class = {}
             for client_centers in all_local_centers:
                 for cls, center_vec in client_centers.items():
@@ -256,7 +260,6 @@ class FedCSRandomConstant(FedAvgRandomConstant):
                         centers_per_class[cls] = []
                     centers_per_class[cls].append(center_vec)
 
-            # Calcula mediana global
             global_centers = {}
             for cls, vectors in centers_per_class.items():
                 stacked_vectors = np.stack(vectors)
@@ -265,7 +268,6 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             self.global_class_centers = global_centers
             log.info(f"FedCS: Global centers computed for {len(global_centers)} classes.")
 
-            # Retorna pesos anteriores (sem atualização nesta rodada)
             return self.last_weights, {}
         
         # Fases normais: Agregação padrão (FedAvg)

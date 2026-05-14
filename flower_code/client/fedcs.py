@@ -84,7 +84,7 @@ class FedCSClient(BaseClient):
             batch_size=self.dataloader.batch_size,
             shuffle=True,
             num_workers=self.dataloader.num_workers,
-            drop_last=True,
+            drop_last=False,
         )
 
     def fit(self, parameters, config):
@@ -135,21 +135,13 @@ class FedCSClient(BaseClient):
                 log.error("Global centers not found in config during pruning phase!")
                 return super().fit(parameters, config)
 
-            try:
-                # Extrai os parâmetros do TOML (que a Strategy colocou no config)
-                beta = float(config.get("beta", 0.65))
-                pf = float(config.get("pf", 0.5))
-                pl = float(config.get("pl", 0.2))
+            beta = float(config.get("beta", 0.65))
+            pf = float(config.get("pf", 0.5))
+            pl = float(config.get("pl", 0.2))
 
-                global_centers = pickle.loads(config["global_centers"])
-                
-                # Chama a poda passando os parâmetros dinâmicos
-                self._prune_dataset(global_centers, prune_event_id=prune_event_id, beta=beta, pf=pf, pl=pl)
-                
-            except Exception as e:
-                log.error(f"Error processing global centers or pruning: {e}")
-            
-            # Treina no dataset reduzido
+            global_centers = pickle.loads(config["global_centers"])
+            self._prune_dataset(global_centers, prune_event_id=prune_event_id, beta=beta, pf=pf, pl=pl)
+
             return super().fit(parameters, config)
 
         # --- FASE 4: Fine-Tuning ---
@@ -162,12 +154,23 @@ class FedCSClient(BaseClient):
     def _get_features_and_labels(self):
         """
         Roda inferência no dataset local e extrai (features, labels).
+        Uses a non-shuffled, non-dropping DataLoader so that features[i]
+        maps deterministically to dataset[i], which is required for
+        correct pruning index computation.
         """
         self.model.eval()
         self.model.to(self.device)
         
         features_list = []
         labels_list = []
+
+        extraction_loader = DataLoader(
+            self.dataloader.dataset,
+            batch_size=self.dataloader.batch_size,
+            shuffle=False,
+            num_workers=self.dataloader.num_workers,
+            drop_last=False,
+        )
 
         last_layer_name = None
         for name, module in self.model.named_modules():
@@ -188,8 +191,7 @@ class FedCSClient(BaseClient):
             return np.array([]), np.array([])
 
         with torch.no_grad():
-            for batch in self.dataloader:
-                # Detecta se é Dict (HuggingFace) ou Tupla/Lista (PyTorch padrão)
+            for batch in extraction_loader:
                 if isinstance(batch, dict):
                     if "img" in batch: inputs = batch["img"]
                     elif "image" in batch: inputs = batch["image"]
@@ -269,23 +271,28 @@ class FedCSClient(BaseClient):
 
         centers_matrix = np.array([global_centers[k] for k in classes_global])
 
-        # --- DC Score computation (Eqs. 7-9) ---
+        # --- DC Score computation (Eqs. 7-9) — vectorized ---
         dists = cdist(features, centers_matrix, metric='euclidean')
-        dc_scores = np.full(len(features), 9999.0)
+        n_samples = len(features)
+        n_classes = len(classes_global)
 
-        for i in range(len(features)):
-            label = int(labels[i])
-            if label not in classes_global:
-                continue
+        class_to_idx = {cls: idx for idx, cls in enumerate(classes_global)}
+        label_indices = np.array([class_to_idx.get(int(l), -1) for l in labels])
 
-            cls_idx = classes_global.index(label)
-            d_correct = dists[i, cls_idx]
+        valid_mask = label_indices >= 0
+        dc_scores = np.full(n_samples, 9999.0)
 
-            dists_copy = dists[i].copy()
-            dists_copy[cls_idx] = np.inf
-            d_min = np.min(dists_copy)
+        if valid_mask.any():
+            valid_idx = np.where(valid_mask)[0]
+            vi_labels = label_indices[valid_idx]
 
-            dc_scores[i] = abs(d_min - d_correct)
+            d_correct = dists[valid_idx, vi_labels]
+
+            dists_masked = dists[valid_idx].copy()
+            dists_masked[np.arange(len(valid_idx)), vi_labels] = np.inf
+            d_min = dists_masked.min(axis=1)
+
+            dc_scores[valid_idx] = np.abs(d_min - d_correct)
 
         # --- Double Pruning (Algorithm 1, lines 17-21) ---
         all_indices = np.arange(len(features))

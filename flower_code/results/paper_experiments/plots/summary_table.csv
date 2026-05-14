@@ -1,0 +1,5 @@
+experiment,alpha,n_seeds,mean_final_accuracy,std_final_accuracy,mean_energy_mJ,std_energy_mJ
+fedavg_baseline,0.1,3,0.570375,0.085151,1115458520.91,115386112.28
+fedavg_baseline,1.0,3,0.763292,0.003777,1100062592.45,15784049.07
+fedcs_original,0.1,3,0.623875,0.047294,1099079530.63,138653444.19
+fedcs_original,1.0,3,0.765000,0.009546,1091153490.64,35813876.34

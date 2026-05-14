@@ -1,5 +1,6 @@
 # Ambiente virtual
 venv/
+.venv/
 
 # Pastas de ambientes/pacotes gerados automaticamente (não versionar)
 ENTER/

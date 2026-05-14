@@ -151,15 +151,17 @@ def get_eval_fn(context: Context, test_loader: DataLoader):
 
 
 def get_on_fit_config_fn(context: Context):
+    import math
+
     epochs = int(context.run_config["epochs"])
     learning_rate = float(context.run_config["learning-rate"])
     weight_decay = float(context.run_config["weight-decay"])
     participants_name = context.run_config["participants-name"]
     momentum = float(context.run_config["momentum"])
+    num_rounds = int(context.run_config["num-rounds"])
 
     def on_fit_config(server_round: int) -> Dict[str, Any]:
-        # Keep a stable LR unless an explicit scheduler is implemented.
-        lr = learning_rate
+        lr = learning_rate * 0.5 * (1.0 + math.cos(math.pi * server_round / num_rounds))
 
         return {"server_round": server_round, "epochs": epochs, "learning_rate": lr,
                 "weight_decay": weight_decay, "participants_name": participants_name,
