@@ -31,6 +31,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         min_pretrain_rounds: int = 20,
         pretrain_tau: float = 0.02,
         pretrain_window: int = 10,
+        random_prune: bool = False,
         **kwargs,
     ):
         cache_path = ".cache_fedcs"
@@ -48,6 +49,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         self.min_pretrain_rounds = min_pretrain_rounds
         self.pretrain_tau = pretrain_tau
         self.pretrain_window = pretrain_window
+        self.random_prune = random_prune
         self._transition_round: Optional[int] = None
 
         self.global_class_centers = None
@@ -167,11 +169,15 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         else:
             pretrain_label = f"pretrain{self.pretrain_rounds}"
 
+        # Distinguish random-pruning ablation runs from DC-based FedCS runs
+        # so they don't overwrite each other's output directory.
+        prune_mode_tag = "_randomprune" if self.random_prune else ""
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"{pretrain_label}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_mode_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")
@@ -202,6 +208,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             "beta": self.beta,
             "pf": self.pf,
             "pl": self.pl,
+            "random_prune": self.random_prune,
         }
 
         # Na fase de Poda, enviamos os Centros Globais

@@ -18,9 +18,14 @@ export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/transformers}"
 mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$MPLCONFIGDIR" \
   "$HF_HOME" "$HF_DATASETS_CACHE" "$TRANSFORMERS_CACHE"
 
-if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$ROOT/venv/bin/activate" ]; then
-  # shellcheck disable=SC1091
-  source "$ROOT/venv/bin/activate"
+if [ -z "${VIRTUAL_ENV:-}" ]; then
+  for _venv_dir in ".venv" "venv"; do
+    if [ -f "$ROOT/$_venv_dir/bin/activate" ]; then
+      # shellcheck disable=SC1091
+      source "$ROOT/$_venv_dir/bin/activate"
+      break
+    fi
+  done
 fi
 
 # ── Defaults (override before calling parse_args if needed) ──

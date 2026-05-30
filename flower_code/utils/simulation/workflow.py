@@ -248,6 +248,7 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 min_pretrain_rounds = int(context.run_config.get("min-pretrain-rounds", 20))
                 pretrain_tau = float(context.run_config.get("pretrain-tau", 0.02))
                 pretrain_window = int(context.run_config.get("pretrain-window", 10))
+                random_prune = bool(context.run_config.get("random-prune", False))
 
                 strategy = FedCSRandomConstant(
                     repr="FedCSRandomConstant",
@@ -259,6 +260,7 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     min_pretrain_rounds=min_pretrain_rounds,
                     pretrain_tau=pretrain_tau,
                     pretrain_window=pretrain_window,
+                    random_prune=random_prune,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,

@@ -138,9 +138,13 @@ class FedCSClient(BaseClient):
             beta = float(config.get("beta", 0.65))
             pf = float(config.get("pf", 0.5))
             pl = float(config.get("pl", 0.2))
+            random_prune = bool(config.get("random_prune", False))
 
             global_centers = pickle.loads(config["global_centers"])
-            self._prune_dataset(global_centers, prune_event_id=prune_event_id, beta=beta, pf=pf, pl=pl)
+            self._prune_dataset(
+                global_centers, prune_event_id=prune_event_id,
+                beta=beta, pf=pf, pl=pl, random_prune=random_prune,
+            )
 
             return super().fit(parameters, config)
 
@@ -246,6 +250,7 @@ class FedCSClient(BaseClient):
         beta: float,
         pf: float,
         pl: float,
+        random_prune: bool = False,
     ):
         """
         Paper-faithful double pruning (Algorithm 1 from FedCS, CVPR 2025).
@@ -258,6 +263,13 @@ class FedCSClient(BaseClient):
                  fraction (highest DC scores).
 
         Saves pruning indices to disk for persistence across Flower rounds.
+
+        When ``random_prune`` is True, the SAME double-pruning structure and pruning
+        rates (pf on large classes, pl on the remainder) are applied, but the samples
+        removed in each phase are chosen UNIFORMLY AT RANDOM instead of by DC score.
+        This is the paper's "Random" ablation baseline: it isolates the contribution
+        of the DC criterion while keeping the pruning rate identical for a fair
+        comparison.
         """
         features, labels = self._get_features_and_labels()
         if len(features) == 0:
@@ -308,13 +320,20 @@ class FedCSClient(BaseClient):
         large_indices = all_indices[large_mask]
 
         if len(large_indices) > 0:
-            large_scores = dc_scores[large_indices]
-            sorted_order = np.argsort(large_scores)
-            large_sorted = large_indices[sorted_order]
-
             mf = int(len(large_indices) * pf)
-            # Top-Mf = highest DC scores = last mf elements after ascending sort
-            phase1_remove = set(large_sorted[len(large_sorted) - mf:]) if mf > 0 else set()
+            if mf > 0:
+                if random_prune:
+                    phase1_remove = set(
+                        np.random.choice(large_indices, size=mf, replace=False)
+                    )
+                else:
+                    large_scores = dc_scores[large_indices]
+                    sorted_order = np.argsort(large_scores)
+                    large_sorted = large_indices[sorted_order]
+                    # Top-Mf = highest DC scores = last mf elements after ascending sort
+                    phase1_remove = set(large_sorted[len(large_sorted) - mf:])
+            else:
+                phase1_remove = set()
         else:
             phase1_remove = set()
 
@@ -326,12 +345,19 @@ class FedCSClient(BaseClient):
 
         # Phase 2: low-ratio pruning on remaining dataset (cross-class)
         if len(remaining_indices) > 0:
-            remaining_scores = dc_scores[remaining_indices]
-            sorted_order = np.argsort(remaining_scores)
-            remaining_sorted = remaining_indices[sorted_order]
-
             ml = int(len(remaining_indices) * pl)
-            phase2_remove = set(remaining_sorted[len(remaining_sorted) - ml:]) if ml > 0 else set()
+            if ml > 0:
+                if random_prune:
+                    phase2_remove = set(
+                        np.random.choice(remaining_indices, size=ml, replace=False)
+                    )
+                else:
+                    remaining_scores = dc_scores[remaining_indices]
+                    sorted_order = np.argsort(remaining_scores)
+                    remaining_sorted = remaining_indices[sorted_order]
+                    phase2_remove = set(remaining_sorted[len(remaining_sorted) - ml:])
+            else:
+                phase2_remove = set()
         else:
             phase2_remove = set()
 
@@ -368,8 +394,9 @@ class FedCSClient(BaseClient):
 
         n_phase1 = len(phase1_remove)
         n_phase2 = len(phase2_remove)
+        mode = "RANDOM" if random_prune else "DC"
         print(
-            f" >>> [FedCS] Double pruning: {len(features)} -> {len(indices_to_keep)} samples "
+            f" >>> [FedCS] Double pruning [{mode}]: {len(features)} -> {len(indices_to_keep)} samples "
             f"(phase1 removed {n_phase1} from large classes, phase2 removed {n_phase2} from remaining, "
             f"beta={beta}, pf={pf}, pl={pl})"
         )

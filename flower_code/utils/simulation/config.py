@@ -80,6 +80,7 @@ class ConfigRepository:
         cfg.setdefault("min-pretrain-rounds", 20)
         cfg.setdefault("pretrain-tau", 0.02)
         cfg.setdefault("pretrain-window", 10)
+        cfg.setdefault("random-prune", False)
 
         # Processing
         # global
@@ -120,6 +121,9 @@ class ConfigRepository:
         if "adaptive-pretrain" in cfg:
             v = cfg["adaptive-pretrain"]
             cfg["adaptive-pretrain"] = v if isinstance(v, bool) else str(v).lower() in ("true", "1", "yes")
+        if "random-prune" in cfg:
+            v = cfg["random-prune"]
+            cfg["random-prune"] = v if isinstance(v, bool) else str(v).lower() in ("true", "1", "yes")
         if "min-pretrain-rounds" in cfg:
             cfg["min-pretrain-rounds"] = int(cfg["min-pretrain-rounds"])
         if "pretrain-tau" in cfg:
