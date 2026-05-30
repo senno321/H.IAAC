@@ -31,7 +31,14 @@ classify_run() {
     return
   fi
 
-  # FedCS original (static pretrain, no Path A flag)
+  # FedCS with RANDOM double pruning (ablation). Must be checked BEFORE
+  # fedcs_original, since both share the "pretrain<N>" pattern.
+  if [[ "$dirname" =~ ^fedavg_fedcs_constant_.*randomprune ]]; then
+    echo "fedcs_random_prune"
+    return
+  fi
+
+  # FedCS original (static pretrain, DC-based pruning, no Path A flag)
   if [[ "$dirname" =~ ^fedavg_fedcs_constant_.*pretrain[0-9]+ ]]; then
     echo "fedcs_original"
     return
