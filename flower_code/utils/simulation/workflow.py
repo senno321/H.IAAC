@@ -249,6 +249,10 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 pretrain_tau = float(context.run_config.get("pretrain-tau", 0.02))
                 pretrain_window = int(context.run_config.get("pretrain-window", 10))
                 random_prune = bool(context.run_config.get("random-prune", False))
+                budget_mode = str(context.run_config.get("budget-mode", "off"))
+                budget_percentile = float(context.run_config.get("budget-percentile", 0.0))
+                budget_value = float(context.run_config.get("budget-value", 0.0))
+                budget_min_keep = int(context.run_config.get("budget-min-keep", 1))
 
                 strategy = FedCSRandomConstant(
                     repr="FedCSRandomConstant",
@@ -261,6 +265,10 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     pretrain_tau=pretrain_tau,
                     pretrain_window=pretrain_window,
                     random_prune=random_prune,
+                    budget_mode=budget_mode,
+                    budget_percentile=budget_percentile,
+                    budget_value=budget_value,
+                    budget_min_keep=budget_min_keep,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,

@@ -115,6 +115,18 @@ min-pretrain-rounds = 20    # minimum pretrain rounds before checking convergenc
 pretrain-tau = 0.02         # MA improvement threshold to consider "plateau"
 pretrain-window = 10        # sliding window size for MA comparison
 
+# FedCS capacity budget (FedCore-style): aligns samples-per-client to device capacity.
+# When enabled, the fixed pf/pl rates are replaced by a per-client target K_i derived
+# from a per-round budget; the DC score still decides WHICH samples are kept.
+# budget-mode: "off" (fixed pf/pl, default) | "time" (uses training_ms) | "energy" (uses training_mJ)
+budget-mode = "off"
+# If > 0: tau = this percentile of the clients' full-data round cost (auto-adapts to the fleet).
+budget-percentile = 70.0
+# Absolute tau (ms if time-mode, mJ if energy-mode). Used only when budget-percentile <= 0.
+budget-value = 0.0
+# Minimum number of samples a straggler must keep after budget pruning.
+budget-min-keep = 1
+
 [tool.flwr.federations]
 default = "local-simulation"
 

@@ -119,6 +119,11 @@ class FedCSClient(BaseClient):
                 status_msg = str(e)
                 metrics["local_centers"] = pickle.dumps({})
 
+            # Identify this client so the server can (a) map system metrics and
+            # (b) key the capacity-budget target K_i by cid.
+            metrics["cid"] = self.cid
+            metrics["flwr_cid"] = self.flwr_cid
+
             # Retorna pesos inalterados, contagem e métricas
             return parameters, len(self.dataloader.dataset), metrics
 
@@ -140,10 +145,26 @@ class FedCSClient(BaseClient):
             pl = float(config.get("pl", 0.2))
             random_prune = bool(config.get("random_prune", False))
 
+            # Capacity budget (FedCore-style): the server sends a per-client target
+            # sample count K_i. When present, it replaces the fixed pf/pl rates.
+            target_keep = None
+            if "target_keep" in config:
+                try:
+                    all_targets = pickle.loads(config["target_keep"])
+                    target_keep = all_targets.get(self.cid)
+                    if target_keep is None:
+                        target_keep = all_targets.get(int(self.cid))
+                    if target_keep is not None:
+                        target_keep = int(target_keep)
+                except Exception as e:
+                    log.error(f"Client {self.cid}: failed to read target_keep: {e}")
+                    target_keep = None
+
             global_centers = pickle.loads(config["global_centers"])
             self._prune_dataset(
                 global_centers, prune_event_id=prune_event_id,
                 beta=beta, pf=pf, pl=pl, random_prune=random_prune,
+                target_keep=target_keep,
             )
 
             return super().fit(parameters, config)
@@ -243,6 +264,21 @@ class FedCSClient(BaseClient):
             
         return centers
 
+    def _persist_and_apply_keep(self, indices_to_keep, prune_event_id: int):
+        """Save the kept indices to disk and rebuild the (pruned) dataloader."""
+        indices_to_keep = sorted(set(int(i) for i in indices_to_keep))
+        try:
+            payload = {"event_id": prune_event_id, "indices": indices_to_keep}
+            with open(self.prune_state_file, "wb") as f:
+                pickle.dump(payload, f)
+        except Exception as e:
+            log.error(f"Client {self.cid}: Failed to save pruning indices: {e}")
+
+        self._recreate_dataloader(indices_to_keep)
+        self.is_pruned = True
+        self.last_prune_event_id = prune_event_id
+        return indices_to_keep
+
     def _prune_dataset(
         self,
         global_centers: Dict[int, np.ndarray],
@@ -251,6 +287,7 @@ class FedCSClient(BaseClient):
         pf: float,
         pl: float,
         random_prune: bool = False,
+        target_keep: int = None,
     ):
         """
         Paper-faithful double pruning (Algorithm 1 from FedCS, CVPR 2025).
@@ -305,6 +342,44 @@ class FedCSClient(BaseClient):
             d_min = dists_masked.min(axis=1)
 
             dc_scores[valid_idx] = np.abs(d_min - d_correct)
+
+        # --- Capacity-budget pruning (FedCore-style): keep exactly target_keep samples ---
+        # The budget (server-side) decides HOW MANY; the DC score decides WHICH ones.
+        if target_keep is not None:
+            n_total = len(features)
+            unique_labels = np.unique(labels)
+
+            if target_keep >= n_total:
+                # Fits within the budget => not a straggler => keep the full dataset.
+                self._persist_and_apply_keep(list(range(n_total)), prune_event_id)
+                print(
+                    f" >>> [FedCS] Budget keep-all: client {self.cid} fits budget "
+                    f"(target={target_keep} >= n={n_total}); no pruning."
+                )
+                return
+
+            if random_prune:
+                keep = list(np.random.choice(n_total, size=target_keep, replace=False))
+            else:
+                # Lowest DC = boundary/informative samples => keep those first.
+                order = np.argsort(dc_scores)
+                keep = list(order[:target_keep])
+
+            keep_set = set(int(i) for i in keep)
+            # Guarantee at least 1 sample per class present on this client.
+            for cls in unique_labels:
+                cls_indices = np.where(labels == cls)[0]
+                if not any(i in keep_set for i in cls_indices):
+                    best = int(cls_indices[np.argmin(dc_scores[cls_indices])])
+                    keep_set.add(best)
+
+            indices_to_keep = self._persist_and_apply_keep(keep_set, prune_event_id)
+            mode = "RANDOM" if random_prune else "DC"
+            print(
+                f" >>> [FedCS] Budget pruning [{mode}]: client {self.cid} "
+                f"{n_total} -> {len(indices_to_keep)} samples (target={target_keep})"
+            )
+            return
 
         # --- Double Pruning (Algorithm 1, lines 17-21) ---
         all_indices = np.arange(len(features))

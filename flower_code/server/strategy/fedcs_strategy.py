@@ -32,6 +32,10 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         pretrain_tau: float = 0.02,
         pretrain_window: int = 10,
         random_prune: bool = False,
+        budget_mode: str = "off",
+        budget_percentile: float = 0.0,
+        budget_value: float = 0.0,
+        budget_min_keep: int = 1,
         **kwargs,
     ):
         cache_path = ".cache_fedcs"
@@ -50,17 +54,30 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         self.pretrain_tau = pretrain_tau
         self.pretrain_window = pretrain_window
         self.random_prune = random_prune
+        self.budget_mode = str(budget_mode).strip().lower()
+        self.budget_percentile = budget_percentile
+        self.budget_value = budget_value
+        self.budget_min_keep = budget_min_keep
         self._transition_round: Optional[int] = None
 
         self.global_class_centers = None
         self.last_weights = None
         self.prune_event_id = 0
+        # Per-client full dataset size (n_i), captured during the selection phase.
+        # Used to derive the capacity-based target K_i when budget_mode != "off".
+        self.client_dataset_sizes: Dict[int, int] = {}
 
         if self.adaptive_pretrain:
             log.info(
                 "FedCS adaptive pretrain ENABLED: min=%d, max=%d, window=%d, tau=%.4f",
                 self.min_pretrain_rounds, self.pretrain_rounds,
                 self.pretrain_window, self.pretrain_tau,
+            )
+
+        if self.budget_mode != "off":
+            log.info(
+                "FedCS capacity budget ENABLED: mode=%s, percentile=%.2f, value=%.2f, min_keep=%d",
+                self.budget_mode, self.budget_percentile, self.budget_value, self.budget_min_keep,
             )
 
     def _get_phase(self, server_round: int) -> str:
@@ -215,6 +232,13 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         if phase == "pruning" and self.global_class_centers is not None:
             config["global_centers"] = pickle.dumps(self.global_class_centers)
 
+        # Capacity budget (FedCore-style): per-client target K_i replaces fixed pf/pl.
+        if phase == "pruning" and self.budget_mode != "off":
+            epochs = int(base_fit_config.get("epochs", self.context.run_config.get("epochs", 1)))
+            targets = self._compute_capacity_targets(epochs)
+            if targets:
+                config["target_keep"] = pickle.dumps(targets)
+
         if phase in ("selection", "pruning"):
             return self._configure_all_clients_fit(parameters, client_manager, config)
 
@@ -229,6 +253,62 @@ class FedCSRandomConstant(FedAvgRandomConstant):
 
         return new_instructions
 
+    def _compute_capacity_targets(self, epochs: int) -> Dict[int, int]:
+        """Derive the per-client target sample count K_i from the round budget.
+
+        Cost model (see utils/profile/client_metrics.py):
+            round_cost_i(n) = cost_per_sample_i * n * epochs
+        where cost_per_sample_i is training_ms (time-mode) or training_mJ (energy-mode).
+
+        The budget tau is either an absolute value (budget_value) or, when
+        budget_percentile > 0, the given percentile of the clients' FULL-data round
+        costs (auto-adapts to the fleet: percentile p => the fastest p% keep all data).
+
+            K_i = clamp( floor(tau / (cost_per_sample_i * epochs)), min_keep, n_i )
+        """
+        cost_key = "training_mJ" if self.budget_mode == "energy" else "training_ms"
+
+        per_sample_cost: Dict[int, float] = {}
+        full_costs: List[float] = []
+        for cid, n_i in self.client_dataset_sizes.items():
+            if cid not in self.profiles:
+                continue
+            cps = float(self.profiles[cid][cost_key]) * max(1, epochs)
+            per_sample_cost[cid] = cps
+            full_costs.append(cps * n_i)
+
+        if not per_sample_cost or not full_costs:
+            log.warning("FedCS budget: no client sizes/profiles available; skipping targets.")
+            return {}
+
+        if self.budget_percentile and self.budget_percentile > 0:
+            tau = float(np.percentile(np.array(full_costs), self.budget_percentile))
+        else:
+            tau = float(self.budget_value)
+
+        if tau <= 0:
+            log.warning("FedCS budget: computed tau=%.4f <= 0; skipping targets.", tau)
+            return {}
+
+        targets: Dict[int, int] = {}
+        n_stragglers = 0
+        for cid, n_i in self.client_dataset_sizes.items():
+            cps = per_sample_cost.get(cid)
+            if cps is None or cps <= 0:
+                targets[cid] = n_i
+                continue
+            k = int(tau // cps)
+            k = max(self.budget_min_keep, min(n_i, k))
+            targets[cid] = k
+            if k < n_i:
+                n_stragglers += 1
+
+        log.info(
+            "FedCS budget targets: mode=%s tau=%.2f (%s) | %d clients, %d stragglers pruned",
+            self.budget_mode, tau, cost_key, len(targets), n_stragglers,
+        )
+        return targets
+
     def aggregate_fit(
         self,
         server_round: int,
@@ -240,6 +320,12 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         # Fase de Seleção: Agrega Centros de Classe
         if phase == "selection":
             log.info("FedCS: Aggregating Class Centers (Selection Phase)")
+
+            # Capture each client's full dataset size (n_i) for capacity-budget targets.
+            for _client_proxy, _fit_res in results:
+                _cid = _fit_res.metrics.get("cid")
+                if _cid is not None:
+                    self.client_dataset_sizes[int(_cid)] = int(_fit_res.num_examples)
 
             if server_round > 1:
                 cids_joules_consumption, selected_cids_training_time, max_round_training_time = \
