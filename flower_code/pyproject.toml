@@ -108,6 +108,7 @@ beta = 0.65              # Limiar para considerar uma classe como "Large-Capacit
 pf = 0.5                 # Taxa de poda alta (para classes grandes)
 pl = 0.2                 # Taxa de poda baixa (para classes pequenas/restantes)
 prune-rounds = ""        # Ex.: "10,50" ou "30,70" (usado em fedcs_dynamic)
+random-prune = false     # ablação: poda aleatória (mesma taxa) em vez de DC
 
 # Adaptive pretrain (only used when adaptive-pretrain = true)
 adaptive-pretrain = true    # toggle: auto-detect when to stop pretraining

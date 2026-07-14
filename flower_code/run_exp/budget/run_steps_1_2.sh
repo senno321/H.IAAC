@@ -64,11 +64,23 @@ BUDGET_MODE="${BUDGET_MODE:-time}"
 BUDGET_PERCENTILE="${BUDGET_PERCENTILE:-70}"
 BUDGET_VALUE="${BUDGET_VALUE:-0}"
 
+# ── Quais testes rodar (default: todos) ──
+# O T1 (FedAvg) já foi rodado; por isso o default aqui é PULAR o T1.
+# Para rodar tudo de novo: RUN_T1=true ./run_exp/budget/run_steps_1_2.sh ...
+RUN_T1="${RUN_T1:-false}"
+RUN_T2="${RUN_T2:-true}"
+RUN_T3="${RUN_T3:-true}"
+RUN_T4="${RUN_T4:-true}"
+
 beta_for_alpha() {
   if [ "$1" = "0.1" ]; then echo "0.65"; else echo "0.5"; fi
 }
 
-TOTAL_RUNS=$(( ${#SEEDS[@]} * ${#ALPHAS[@]} * 4 ))
+N_TESTS=0
+for _t in "$RUN_T1" "$RUN_T2" "$RUN_T3" "$RUN_T4"; do
+  [ "$_t" = true ] && N_TESTS=$((N_TESTS + 1))
+done
+TOTAL_RUNS=$(( ${#SEEDS[@]} * ${#ALPHAS[@]} * N_TESTS ))
 
 echo "============================================================"
 echo "  FedCS capacity-budget — Passos 1 & 2 (4 tests)"
@@ -76,6 +88,7 @@ echo "  Federation: $FED"
 echo "  Seeds: ${SEEDS[*]} | Alphas: ${ALPHAS[*]}"
 echo "  Model: $MODEL | rounds=$N_ROUNDS pretrain=$PRETRAIN epochs=$EPOCHS"
 echo "  Budget: mode=$BUDGET_MODE percentile=$BUDGET_PERCENTILE value=$BUDGET_VALUE"
+echo "  Tests: T1=$RUN_T1 T2=$RUN_T2 T3=$RUN_T3 T4=$RUN_T4"
 echo "  clients=$N_CLIENTS participants=$N_PART | Total runs: $TOTAL_RUNS"
 echo "============================================================"
 echo ""
@@ -95,20 +108,28 @@ for SEED in "${SEEDS[@]}"; do
     BETA="$(beta_for_alpha "$ALPHA")"
 
     # ── T1: FedAvg (full dataset) — teto ──
-    run_single "T1 FedAvg           | seed=$SEED alpha=$ALPHA" \
-      "seed=$SEED dir-alpha=$ALPHA selection-name=\"random\" $COMMON"
+    if [ "$RUN_T1" = true ]; then
+      run_single "T1 FedAvg           | seed=$SEED alpha=$ALPHA" \
+        "seed=$SEED dir-alpha=$ALPHA selection-name=\"random\" $COMMON"
+    fi
 
     # ── T2: FedCS DC + orçamento (proposta) ──
-    run_single "T2 FedCS-DC+budget  | seed=$SEED alpha=$ALPHA beta=$BETA" \
-      "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=false $BUDGET $COMMON"
+    if [ "$RUN_T2" = true ]; then
+      run_single "T2 FedCS-DC+budget  | seed=$SEED alpha=$ALPHA beta=$BETA" \
+        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=false $BUDGET $COMMON"
+    fi
 
     # ── T3: FedCS random + orçamento (ablação: DC importa?) ──
-    run_single "T3 FedCS-Rand+budget| seed=$SEED alpha=$ALPHA beta=$BETA" \
-      "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=true $BUDGET $COMMON"
+    if [ "$RUN_T3" = true ]; then
+      run_single "T3 FedCS-Rand+budget| seed=$SEED alpha=$ALPHA beta=$BETA" \
+        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=true $BUDGET $COMMON"
+    fi
 
     # ── T4: FedCS DC + taxa fixa (ablação: orçamento importa? = FedCS atual) ──
-    run_single "T4 FedCS-DC+fixed   | seed=$SEED alpha=$ALPHA beta=$BETA" \
-      "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=false budget-mode=\"off\" $COMMON"
+    if [ "$RUN_T4" = true ]; then
+      run_single "T4 FedCS-DC+fixed   | seed=$SEED alpha=$ALPHA beta=$BETA" \
+        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=false budget-mode=\"off\" $COMMON"
+    fi
   done
 done
 
