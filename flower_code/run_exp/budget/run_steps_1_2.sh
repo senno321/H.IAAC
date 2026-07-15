@@ -64,6 +64,12 @@ BUDGET_MODE="${BUDGET_MODE:-time}"
 BUDGET_PERCENTILE="${BUDGET_PERCENTILE:-70}"
 BUDGET_VALUE="${BUDGET_VALUE:-0}"
 
+# ── Pasta única do experimento ──
+# Todos os runs (T1..T4) caem em outputs/<EXP_TAG>/ em vez de separar por data.
+# Tag ESTÁVEL: re-rodar cai sempre na mesma pasta do experimento (cada teste tem
+# seu subdiretório próprio, então só sobrescreve o run de mesma config). Override por env.
+EXP_TAG="${EXP_TAG:-steps12}"
+
 # ── Quais testes rodar (default: todos) ──
 # O T1 (FedAvg) já foi rodado; por isso o default aqui é PULAR o T1.
 # Para rodar tudo de novo: RUN_T1=true ./run_exp/budget/run_steps_1_2.sh ...
@@ -89,6 +95,7 @@ echo "  Seeds: ${SEEDS[*]} | Alphas: ${ALPHAS[*]}"
 echo "  Model: $MODEL | rounds=$N_ROUNDS pretrain=$PRETRAIN epochs=$EPOCHS"
 echo "  Budget: mode=$BUDGET_MODE percentile=$BUDGET_PERCENTILE value=$BUDGET_VALUE"
 echo "  Tests: T1=$RUN_T1 T2=$RUN_T2 T3=$RUN_T3 T4=$RUN_T4"
+echo "  Exp folder: outputs/$EXP_TAG/"
 echo "  clients=$N_CLIENTS participants=$N_PART | Total runs: $TOTAL_RUNS"
 echo "============================================================"
 echo ""
@@ -98,7 +105,7 @@ setup_model_and_profiles "random" "$AGG"
 setup_model_and_profiles "fedcs" "$AGG"
 
 # Fragmento comum (constante nos 4 testes).
-COMMON="num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL participants-name=\"constant\" aggregation-name=\"$AGG\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES batch-size=$BATCH_SIZE epochs=$EPOCHS"
+COMMON="num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL participants-name=\"constant\" aggregation-name=\"$AGG\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES batch-size=$BATCH_SIZE epochs=$EPOCHS exp-tag=\"$EXP_TAG\""
 
 # Fragmento do orçamento (T2 e T3).
 BUDGET="budget-mode=\"$BUDGET_MODE\" budget-percentile=$BUDGET_PERCENTILE budget-value=$BUDGET_VALUE"
@@ -135,8 +142,8 @@ done
 
 echo ""
 echo "============================================================"
-echo "  Passos 1 & 2 completos ($TOTAL_RUNS runs)."
-echo "  Outputs em: outputs/$(date +%d-%m-%Y)/"
+  echo "  Passos 1 & 2 completos ($TOTAL_RUNS runs)."
+  echo "  Outputs em: outputs/$EXP_TAG/"
 if [ "$NO_LOG" = false ]; then
   echo "  Log completo em: $LOG_FILE"
 fi

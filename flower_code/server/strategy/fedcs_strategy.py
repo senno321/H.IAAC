@@ -158,7 +158,10 @@ class FedCSRandomConstant(FedAvgRandomConstant):
     def _do_initialization(self, client_manager):
         """Output dir includes pretrain_rounds so sweeps don't overwrite each other."""
         import datetime
-        current_date = datetime.datetime.now().strftime("%d-%m-%Y")
+        # If exp-tag is set, all runs of the experiment share one folder
+        # (outputs/<exp-tag>/...) instead of splitting by date. Falls back to date.
+        exp_tag = str(self.context.run_config.get("exp-tag", "")).strip()
+        current_date = exp_tag if exp_tag else datetime.datetime.now().strftime("%d-%m-%Y")
         selection_name = self.context.run_config["selection-name"]
         aggregation_name = self.context.run_config["aggregation-name"]
         participants_name = self.context.run_config["participants-name"]

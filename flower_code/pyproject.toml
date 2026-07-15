@@ -35,6 +35,9 @@ seed = 1
 root-model-dir = "./model/"
 root-profiles-dir = "./profiles/"
 root-outputs-dir = "./outputs/"
+# Se definido, agrupa todos os runs do experimento em outputs/<exp-tag>/
+# (em vez de separar por data). Vazio = comportamento antigo (por data).
+exp-tag = ""
 
 # PROFILES
 # "./utils/profile/Mobilenet_v2.json"
