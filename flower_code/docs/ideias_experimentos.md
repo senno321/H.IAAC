@@ -124,6 +124,123 @@ minoritárias no não-IID (versão mais forte do "piso por classe" já implement
 
 
 
+## B) Os quatro experimentos base (T1–T4)
+
+O script `run_exp/budget/run_steps_1_2.sh` roda, para cada `(seed, alpha)`, quatro
+configurações. Elas isolam as duas "peças" da proposta — **QUAIS** amostras ficam (DC) e
+**QUANTAS** ficam (orçamento) — para provar que cada ingrediente contribui.
+
+
+| Teste  | Nome curto               | Seleção (QUAIS) | Tamanho (QUANTAS)     | Papel                                                                              |
+| ------ | ------------------------ | --------------- | --------------------- | --------------------------------------------------------------------------------- |
+| **T1** | FedAvg                   | — (usa tudo)    | dataset completo      | **Teto de acurácia** (ceiling). Sem poda; o mais lento e caro.                     |
+| **T2** | FedCS DC + orçamento     | DC score        | `K_i` por capacidade  | **A proposta.** DC escolhe as melhores amostras; a capacidade define quantas.     |
+| **T3** | FedCS Random + orçamento | aleatória       | `K_i` por capacidade  | **Ablação do DC.** Mesmo orçamento do T2, mas escolhe a esmo → o DC importa?       |
+| **T4** | FedCS DC + taxa fixa     | DC score        | fração fixa `pf`/`pl` | **Ablação do orçamento** (= FedCS atual). Mesmo DC, poda fixa → o orçamento importa? |
+
+
+**Como ler os resultados:**
+
+- **T2 vs T1** → quanto se perde de acurácia ao trocar o dataset completo por um coreset (e quanto se ganha em tempo/energia).
+- **T2 vs T3** → o **DC** vale a pena? (mesma quantidade de amostras, seleção diferente)
+- **T2 vs T4** → o **orçamento por capacidade** vale a pena? (mesma seleção, quantidade diferente)
+
+Se o T2 superar as duas ablações (T3 e T4), os dois ingredientes se justificam.
+
+
+### Nome das pastas de saída (e uma lição)
+
+Cada run grava em `outputs/<exp-tag>/<nome>/`, onde `<nome>` codifica a config:
+
+
+| Teste  | Pasta gerada                                                                     |
+| ------ | ------------------------------------------------------------------------------- |
+| **T1** | `fedavg_random_constant_10_dataset_..._dir_<a>_seed_<s>`                         |
+| **T2** | `fedavg_fedcs_constant_10_pretrain4_budgettimep70_dataset_..._dir_<a>_seed_<s>`  |
+| **T3** | `fedavg_fedcs_constant_10_pretrain4_randomprune_budgettimep70_..._seed_<s>`      |
+| **T4** | `fedavg_fedcs_constant_10_pretrain4_dataset_..._dir_<a>_seed_<s>`                |
+
+
+> **Lição aprendida (bug corrigido):** originalmente o nome da pasta **não** incluía a tag
+> de orçamento, então T2 (`budget=time`) e T4 (`budget=off`) geravam **a mesma pasta** e o
+> T4 — que roda por último — **sobrescrevia** o T2. A tag `_budgettimep70` (modo + percentil
+> do orçamento) foi adicionada em `server/strategy/fedcs_strategy.py` (`_do_initialization`)
+> para evitar essa colisão. Sempre confira com `--dry-run` que cada teste gera uma pasta distinta.
+
+---
+
+
+
+## B.1) Configuração dos experimentos (Passos 1 & 2)
+
+> Valores efetivamente usados por `run_exp/budget/run_steps_1_2.sh` (que sobrescreve alguns
+> defaults do `pyproject.toml` via `--run-config`). Fonte: o próprio script + `run_exp/paper/_common.sh`.
+
+
+### Setup geral
+
+| Parâmetro                 | Valor                 | Onde                        |
+| ------------------------- | --------------------- | --------------------------- |
+| Dataset                   | CIFAR-10 (`uoft-cs/cifar10`) | `pyproject.toml`     |
+| Modelo                    | `Shufflenet_v2_x0_5`  | `_common.sh`                |
+| Input shape               | `(3, 224, 224)`       | `_common.sh`                |
+| Nº de classes             | 10                    | `_common.sh`                |
+| Federação                 | `gpu-sim-dl` (100 supernodes) | `pyproject.toml`    |
+| Clientes totais           | 100                   | `_common.sh` (`N_CLIENTS`)  |
+| Participantes por rodada  | 10                    | `_common.sh` (`N_PART`)     |
+| Avaliadores               | 10                    | `_common.sh` (`N_EVAL`)     |
+| Rodadas                   | 100                   | `_common.sh` (`N_ROUNDS`)   |
+| Épocas locais/rodada      | 5                     | script (`EPOCHS`)           |
+| Batch size                | 8                     | `pyproject.toml`            |
+| Agregação                 | FedAvg                | script (`AGG`)              |
+| Seeds                     | 2, 3                  | script (`SEEDS`)            |
+| Heterogeneidade (Dirichlet α) | 0.1 e 1.0         | script (`ALPHAS`)           |
+
+
+### FedCS — poda por DC (T2, T3, T4)
+
+| Parâmetro          | Valor                                | Significado                                                    |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------- |
+| `pretrain-rounds`  | 4                                    | rodadas de aquecimento antes de podar                         |
+| **Rodada de poda** | **6** (`pretrain+2`), **1 única vez**| poda estática: fases pretrain(1–4) → selection(5) → **pruning(6)** → fine_tuning(7–100) |
+| `beta`             | 0.65 (α=0.1) / 0.5 (α=1.0)           | limiar p/ classe ser "Large-Capacity" (poda dupla)            |
+| `pf`               | 0.5                                  | taxa de poda alta (classes grandes) — **usado só no T4**      |
+| `pl`               | 0.1                                  | taxa de poda baixa (classes restantes) — **usado só no T4**   |
+
+> A poda é **estática**: DC é calculado uma vez (fase selection, rodada 5) e a poda é
+> aplicada uma vez (rodada 6). Da rodada 7 em diante o treino segue com o coreset fixo.
+
+
+### Orçamento (τ e K_i) — só T2 e T3
+
+| Parâmetro           | Valor    | Significado                                                       |
+| ------------------- | -------- | ---------------------------------------------------------------- |
+| `budget-mode`       | `time`   | usa `training_ms` (troque p/ `energy` → usa `training_mJ`)        |
+| `budget-percentile` | 70       | τ = percentil 70 do custo full-data da frota                      |
+| `budget-value`      | 0        | τ absoluto; usado só se `budget-percentile <= 0`                  |
+| `budget-min-keep`   | 1        | piso de amostras por cliente                                     |
+
+**Como τ e K_i são calculados** (em `_compute_capacity_targets`, `fedcs_strategy.py`):
+
+1. Custo full-data de cada cliente `i`:
+   `custo_full_i = training_ms_i × n_i × épocas`  (com épocas = 5).
+2. Orçamento da rodada:
+   `τ = percentil_70( {custo_full_i} )` — ou seja, **os ~70% clientes mais baratos cabem no
+   orçamento e mantêm tudo; os ~30% mais caros (stragglers) são podados.**
+3. Alvo por cliente:
+   `K_i = clamp( floor( τ / (training_ms_i × épocas) ), min_keep=1, n_i )`.
+4. O DC score então escolhe **quais** `K_i` amostras manter (no T3, a escolha é aleatória).
+
+> No **T4** o orçamento está desligado (`budget-mode=off`): a poda usa a fração fixa `pf`/`pl`,
+> igual para todos, ignorando a capacidade — é o FedCS atual.
+
+Os knobs de orçamento são sobrescrevíveis por env sem editar nada:
+`BUDGET_MODE=energy BUDGET_PERCENTILE=60 ./run_exp/budget/run_steps_1_2.sh gpu-sim-dl`.
+
+---
+
+
+
 ## C) Sugestão de ordem de testes
 
 Do mais fundamental para o mais sofisticado. **Não empilhar tudo de uma vez** — cada passo

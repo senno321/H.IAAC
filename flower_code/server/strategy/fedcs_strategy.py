@@ -193,11 +193,21 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         # so they don't overwrite each other's output directory.
         prune_mode_tag = "_randomprune" if self.random_prune else ""
 
+        # Distinguish capacity-budget runs from fixed-rate (pf/pl) runs. Without
+        # this, "DC + budget" and "DC + fixed" produce the SAME dir and overwrite
+        # each other. Only active when budget-mode != off.
+        budget_tag = ""
+        if self.budget_mode and self.budget_mode != "off":
+            if self.budget_value and float(self.budget_value) > 0:
+                budget_tag = f"_budget{self.budget_mode}v{self.budget_value}"
+            else:
+                budget_tag = f"_budget{self.budget_mode}p{self.budget_percentile}"
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"{pretrain_label}{prune_mode_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_mode_tag}{budget_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")
