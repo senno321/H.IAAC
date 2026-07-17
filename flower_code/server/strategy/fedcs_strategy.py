@@ -36,6 +36,11 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         budget_percentile: float = 0.0,
         budget_value: float = 0.0,
         budget_min_keep: int = 1,
+        adaptive_rate: bool = False,
+        adaptive_rate_cost: str = "time",
+        adaptive_rate_min: float = 0.7,
+        adaptive_rate_max: float = 1.3,
+        adaptive_rate_cap: float = 0.95,
         **kwargs,
     ):
         cache_path = ".cache_fedcs"
@@ -58,6 +63,11 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         self.budget_percentile = budget_percentile
         self.budget_value = budget_value
         self.budget_min_keep = budget_min_keep
+        self.adaptive_rate = bool(adaptive_rate)
+        self.adaptive_rate_cost = str(adaptive_rate_cost).strip().lower()
+        self.adaptive_rate_min = float(adaptive_rate_min)
+        self.adaptive_rate_max = float(adaptive_rate_max)
+        self.adaptive_rate_cap = float(adaptive_rate_cap)
         self._transition_round: Optional[int] = None
 
         self.global_class_centers = None
@@ -78,6 +88,13 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             log.info(
                 "FedCS capacity budget ENABLED: mode=%s, percentile=%.2f, value=%.2f, min_keep=%d",
                 self.budget_mode, self.budget_percentile, self.budget_value, self.budget_min_keep,
+            )
+
+        if self.adaptive_rate:
+            log.info(
+                "FedCS adaptive pruning RATE ENABLED: cost=%s, multiplier=[%.2f, %.2f], cap=%.2f",
+                self.adaptive_rate_cost, self.adaptive_rate_min, self.adaptive_rate_max,
+                self.adaptive_rate_cap,
             )
 
     def _get_phase(self, server_round: int) -> str:
@@ -203,11 +220,19 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             else:
                 budget_tag = f"_budget{self.budget_mode}p{self.budget_percentile}"
 
+        # Distinguish adaptive-rate runs (T5) from fixed-rate (T4) so they don't collide.
+        adaptive_tag = ""
+        if self.adaptive_rate:
+            adaptive_tag = (
+                f"_adarate{self.adaptive_rate_cost}"
+                f"{self.adaptive_rate_min}_{self.adaptive_rate_max}"
+            )
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"{pretrain_label}{prune_mode_tag}{budget_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_mode_tag}{budget_tag}{adaptive_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")
@@ -251,6 +276,13 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             targets = self._compute_capacity_targets(epochs)
             if targets:
                 config["target_keep"] = pickle.dumps(targets)
+
+        # Adaptive rate: per-client (pf_i, pl_i) scaled by capacity; double pruning stays on.
+        if phase == "pruning" and self.adaptive_rate:
+            epochs = int(base_fit_config.get("epochs", self.context.run_config.get("epochs", 1)))
+            rates = self._compute_adaptive_rates(epochs)
+            if rates:
+                config["adaptive_rates"] = pickle.dumps(rates)
 
         if phase in ("selection", "pruning"):
             return self._configure_all_clients_fit(parameters, client_manager, config)
@@ -321,6 +353,51 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             self.budget_mode, tau, cost_key, len(targets), n_stragglers,
         )
         return targets
+
+    def _compute_adaptive_rates(self, epochs: int) -> Dict[int, Tuple[float, float]]:
+        """Per-client (pf_i, pl_i) scaled by capacity, keeping the double-pruning structure.
+
+        Ranks participating clients by their FULL-data cost c_i = cost_per_sample_i * n_i
+        (time or energy). The slowest/heaviest client gets the max multiplier, the
+        fastest the min; the base pf/pl are scaled linearly by this rank:
+
+            m_i = rate_min + (rate_max - rate_min) * rank_i,   rank_i in [0, 1]
+            pf_i = clip(m_i * pf, 0, cap),  pl_i = clip(m_i * pl, 0, cap)
+
+        Unlike the capacity budget, EVERY client prunes (double pruning stays on for
+        all); only the intensity adapts to the device profile.
+        """
+        cost_key = "training_mJ" if self.adaptive_rate_cost == "energy" else "training_ms"
+
+        full_costs: Dict[int, float] = {}
+        for cid, n_i in self.client_dataset_sizes.items():
+            if cid not in self.profiles:
+                continue
+            cps = float(self.profiles[cid][cost_key]) * max(1, epochs)
+            full_costs[cid] = cps * n_i
+
+        if not full_costs:
+            log.warning("FedCS adaptive-rate: no client sizes/profiles available; skipping.")
+            return {}
+
+        # Rank ascending by cost: fastest/cheapest -> 0.0, slowest/costliest -> 1.0
+        ordered = sorted(full_costs.items(), key=lambda kv: kv[1])
+        n = len(ordered)
+        rates: Dict[int, Tuple[float, float]] = {}
+        for idx, (cid, _cost) in enumerate(ordered):
+            rank = idx / (n - 1) if n > 1 else 0.5
+            m_i = self.adaptive_rate_min + (self.adaptive_rate_max - self.adaptive_rate_min) * rank
+            pf_i = float(min(self.adaptive_rate_cap, max(0.0, m_i * self.pf)))
+            pl_i = float(min(self.adaptive_rate_cap, max(0.0, m_i * self.pl)))
+            rates[cid] = (pf_i, pl_i)
+
+        log.info(
+            "FedCS adaptive rates: cost=%s | %d clients, pf in [%.3f, %.3f], pl in [%.3f, %.3f]",
+            cost_key, n,
+            min(r[0] for r in rates.values()), max(r[0] for r in rates.values()),
+            min(r[1] for r in rates.values()), max(r[1] for r in rates.values()),
+        )
+        return rates
 
     def aggregate_fit(
         self,

@@ -253,6 +253,11 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 budget_percentile = float(context.run_config.get("budget-percentile", 0.0))
                 budget_value = float(context.run_config.get("budget-value", 0.0))
                 budget_min_keep = int(context.run_config.get("budget-min-keep", 1))
+                adaptive_rate = bool(context.run_config.get("adaptive-rate", False))
+                adaptive_rate_cost = str(context.run_config.get("adaptive-rate-cost", "time"))
+                adaptive_rate_min = float(context.run_config.get("adaptive-rate-min", 0.7))
+                adaptive_rate_max = float(context.run_config.get("adaptive-rate-max", 1.3))
+                adaptive_rate_cap = float(context.run_config.get("adaptive-rate-cap", 0.95))
 
                 strategy = FedCSRandomConstant(
                     repr="FedCSRandomConstant",
@@ -269,6 +274,11 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     budget_percentile=budget_percentile,
                     budget_value=budget_value,
                     budget_min_keep=budget_min_keep,
+                    adaptive_rate=adaptive_rate,
+                    adaptive_rate_cost=adaptive_rate_cost,
+                    adaptive_rate_min=adaptive_rate_min,
+                    adaptive_rate_max=adaptive_rate_max,
+                    adaptive_rate_cap=adaptive_rate_cap,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,

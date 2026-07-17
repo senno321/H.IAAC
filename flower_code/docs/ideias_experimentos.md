@@ -124,11 +124,13 @@ minoritárias no não-IID (versão mais forte do "piso por classe" já implement
 
 
 
-## B) Os quatro experimentos base (T1–T4)
+## B) Os experimentos base (T1–T5)
 
-O script `run_exp/budget/run_steps_1_2.sh` roda, para cada `(seed, alpha)`, quatro
+O script `run_exp/budget/run_steps_1_2.sh` roda, para cada `(seed, alpha)`, cinco
 configurações. Elas isolam as duas "peças" da proposta — **QUAIS** amostras ficam (DC) e
-**QUANTAS** ficam (orçamento) — para provar que cada ingrediente contribui.
+**QUANTAS** ficam (capacidade) — para provar que cada ingrediente contribui. **T1–T4** testam
+a via do *orçamento* (`K_i`); **T5** testa a via da *taxa adaptativa* preservando o double
+pruning do FedCS.
 
 
 | Teste  | Nome curto               | Seleção (QUAIS) | Tamanho (QUANTAS)     | Papel                                                                              |
@@ -137,6 +139,7 @@ configurações. Elas isolam as duas "peças" da proposta — **QUAIS** amostras
 | **T2** | FedCS DC + orçamento     | DC score        | `K_i` por capacidade  | **A proposta.** DC escolhe as melhores amostras; a capacidade define quantas.     |
 | **T3** | FedCS Random + orçamento | aleatória       | `K_i` por capacidade  | **Ablação do DC.** Mesmo orçamento do T2, mas escolhe a esmo → o DC importa?       |
 | **T4** | FedCS DC + taxa fixa     | DC score        | fração fixa `pf`/`pl` | **Ablação do orçamento** (= FedCS atual). Mesmo DC, poda fixa → o orçamento importa? |
+| **T5** | FedCS DC + taxa adaptativa | DC score      | `pf_i`/`pl_i` por capacidade | **Proposta refinada.** Double pruning igual, mas a taxa é por-cliente (pesada nos lentos, leve nos rápidos). **Todos** podam. |
 
 
 **Como ler os resultados:**
@@ -144,8 +147,13 @@ configurações. Elas isolam as duas "peças" da proposta — **QUAIS** amostras
 - **T2 vs T1** → quanto se perde de acurácia ao trocar o dataset completo por um coreset (e quanto se ganha em tempo/energia).
 - **T2 vs T3** → o **DC** vale a pena? (mesma quantidade de amostras, seleção diferente)
 - **T2 vs T4** → o **orçamento por capacidade** vale a pena? (mesma seleção, quantidade diferente)
+- **T5 vs T4** → a **taxa adaptativa** vale a pena? (mesmo double pruning, taxa por-cliente vs fixa)
+- **T5 vs T2** → adaptar a *taxa* (mantendo double pruning) é melhor que adaptar o *volume* (corte único)?
 
-Se o T2 superar as duas ablações (T3 e T4), os dois ingredientes se justificam.
+Se o T2 superar as duas ablações (T3 e T4), os dois ingredientes se justificam. O **T5** é a
+correção da proposta: mantém o FedCS **inteiro** (todos podam, double pruning por classe) e só
+troca a taxa fixa por uma calibrada ao hardware — evitando os dois vícios do T2 (diluição por
+podar só stragglers e perda do rebalanceamento por classe).
 
 
 ### Nome das pastas de saída (e uma lição)
@@ -159,6 +167,7 @@ Cada run grava em `outputs/<exp-tag>/<nome>/`, onde `<nome>` codifica a config:
 | **T2** | `fedavg_fedcs_constant_10_pretrain4_budgettimep70_dataset_..._dir_<a>_seed_<s>`  |
 | **T3** | `fedavg_fedcs_constant_10_pretrain4_randomprune_budgettimep70_..._seed_<s>`      |
 | **T4** | `fedavg_fedcs_constant_10_pretrain4_dataset_..._dir_<a>_seed_<s>`                |
+| **T5** | `fedavg_fedcs_constant_10_pretrain4_adaratetime0.7_1.3_..._dir_<a>_seed_<s>`     |
 
 
 > **Lição aprendida (bug corrigido):** originalmente o nome da pasta **não** incluía a tag
@@ -237,6 +246,34 @@ Cada run grava em `outputs/<exp-tag>/<nome>/`, onde `<nome>` codifica a config:
 Os knobs de orçamento são sobrescrevíveis por env sem editar nada:
 `BUDGET_MODE=energy BUDGET_PERCENTILE=60 ./run_exp/budget/run_steps_1_2.sh gpu-sim-dl`.
 
+### Taxa adaptativa por cliente (T5) — a "ideia original" refinada
+
+O T2 diverge do FedCS em dois pontos: (1) só poda os stragglers (~30%), diluindo o efeito do
+DC; e (2) troca o **double pruning** por um corte global único, perdendo o rebalanceamento por
+classe. O **T5** corrige isso: mantém o FedCS **inteiro** (DC + double pruning por classe) e só
+troca a taxa fixa por uma **taxa por cliente calibrada à capacidade**. **Todos** os clientes
+podam — o lento poda mais, o rápido menos.
+
+| Parâmetro            | Valor  | Significado                                                        |
+| -------------------- | ------ | ---------------------------------------------------------------- |
+| `adaptive-rate`      | `true` | liga a taxa por cliente (mantém `budget-mode=off`)                |
+| `adaptive-rate-cost` | `time` | ranqueia por `training_ms` (troque p/ `energy` → `training_mJ`)   |
+| `adaptive-rate-min`  | 0.7    | multiplicador do cliente mais **rápido** (poda menos)            |
+| `adaptive-rate-max`  | 1.3    | multiplicador do cliente mais **lento** (poda mais)             |
+| `adaptive-rate-cap`  | 0.95   | teto da taxa resultante (evita podar quase tudo)                 |
+
+**Como as taxas por cliente são calculadas** (em `_compute_adaptive_rates`, `fedcs_strategy.py`):
+
+1. Custo full-data de cada cliente: `custo_full_i = training_ms_i × n_i × épocas`.
+2. Ranqueia os participantes por custo → `rank_i ∈ [0,1]` (0 = mais rápido, 1 = mais lento).
+3. Multiplicador: `m_i = 0.7 + (1.3 − 0.7)·rank_i`.
+4. Taxas do cliente: `pf_i = clip(m_i·pf, 0, 0.95)` e `pl_i = clip(m_i·pl, 0, 0.95)`.
+5. O cliente aplica o **double pruning normal** com `pf_i`/`pl_i`; o DC decide **quais** amostras.
+
+Com `pf=0.5 / pl=0.1`: o cliente mais rápido poda `0.35/0.07`, o mais lento `0.65/0.13`.
+Knobs sobrescrevíveis por env:
+`ADAPTIVE_COST=energy ADAPTIVE_MIN=0.4 ADAPTIVE_MAX=1.6 RUN_T5=true ./run_exp/budget/run_steps_1_2.sh gpu-sim-dl`.
+
 ---
 
 
@@ -252,6 +289,7 @@ o que causou o quê.
 | ----- | ----------------------------------------------------------- | ---------- | ---------------------------------------- |
 | 1     | **Orçamento estático** (`DC + K_i por capacidade`, poda 1×) | —          | Base de tudo (menor delta no código)     |
 | 2     | **Ablações** (`random+orçamento`, `DC+taxa fixa`)           | 1          | Provar que DC **e** orçamento importam   |
+| 2.5   | **Taxa adaptativa (T5)** (`DC + pf_i/pl_i por capacidade`)  | 1          | Todos podam + double pruning calibrado ao HW |
 | 3     | **Recompute periódico / por loss** (A1, A2, A3)             | 1          | Adicionar a dimensão dinâmica do FedCore |
 | 4     | **Tamanho variável** (A4, A5, N3)                           | 3          | Acelerar o fim do treino                 |
 | 5     | **Currículo / aleatoriedade / rotação** (A7–A9, N1)         | 3          | Refinar o critério                       |

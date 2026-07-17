@@ -145,6 +145,18 @@ class FedCSClient(BaseClient):
             pl = float(config.get("pl", 0.2))
             random_prune = bool(config.get("random_prune", False))
 
+            # Adaptive rate (T5): server sends per-client (pf_i, pl_i) scaled by capacity.
+            # Keeps the normal double pruning, just replaces the fixed rates per client.
+            if "adaptive_rates" in config:
+                try:
+                    all_rates = pickle.loads(config["adaptive_rates"])
+                    my_rates = all_rates.get(self.cid, all_rates.get(int(self.cid)))
+                    if my_rates is not None:
+                        pf, pl = float(my_rates[0]), float(my_rates[1])
+                        log.info(f"Client {self.cid}: adaptive rates pf={pf:.3f}, pl={pl:.3f}")
+                except Exception as e:
+                    log.error(f"Client {self.cid}: failed to read adaptive_rates: {e}")
+
             # Capacity budget (FedCore-style): the server sends a per-client target
             # sample count K_i. When present, it replaces the fixed pf/pl rates.
             target_keep = None

@@ -131,6 +131,19 @@ budget-value = 0.0
 # Minimum number of samples a straggler must keep after budget pruning.
 budget-min-keep = 1
 
+# FedCS adaptive pruning RATE (per-client, resource-aware). Keeps the full double
+# pruning (DC + per-class rebalancing) but scales pf/pl per client by capacity:
+# slow/heavy clients prune more, fast ones prune less. ALL clients still prune.
+# adaptive-rate: false (use fixed pf/pl, default) | true (per-client rates)
+adaptive-rate = false
+# Cost dimension used to rank capacity: "time" (training_ms) | "energy" (training_mJ).
+adaptive-rate-cost = "time"
+# Multiplier range applied to base pf/pl: fastest client -> min, slowest -> max.
+adaptive-rate-min = 0.7
+adaptive-rate-max = 1.3
+# Upper cap on the resulting per-client rate (avoids pruning ~everything).
+adaptive-rate-cap = 0.95
+
 [tool.flwr.federations]
 default = "local-simulation"
 

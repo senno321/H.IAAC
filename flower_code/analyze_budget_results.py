@@ -50,19 +50,22 @@ import numpy as np
 # ── Metadados dos métodos (chave -> rótulo, cor, ordem) ──
 METHOD_LABELS = {
     "fedavg": "FedAvg (T1, teto)",
-    "fedcs_dc_budget": "FedCS DC + orçamento (T2, proposta)",
+    "fedcs_dc_budget": "FedCS DC + orçamento (T2)",
     "fedcs_random_budget": "FedCS Random + orçamento (T3)",
     "fedcs_dc_fixed": "FedCS DC + taxa fixa (T4)",
+    "fedcs_dc_adaptive": "FedCS DC + taxa adaptativa (T5, proposta)",
 }
 
 METHOD_COLORS = {
     "fedavg": "#888888",
-    "fedcs_dc_budget": "#DD5533",   # destaque: a proposta
+    "fedcs_dc_budget": "#DD5533",
     "fedcs_random_budget": "#55A868",
     "fedcs_dc_fixed": "#4C72B0",
+    "fedcs_dc_adaptive": "#9932CC",   # destaque: a proposta refinada
 }
 
-METHOD_ORDER = ["fedavg", "fedcs_dc_budget", "fedcs_random_budget", "fedcs_dc_fixed"]
+METHOD_ORDER = ["fedavg", "fedcs_dc_budget", "fedcs_random_budget",
+                "fedcs_dc_fixed", "fedcs_dc_adaptive"]
 
 
 def parse_args():
@@ -85,15 +88,18 @@ def parse_run_name(name: str):
     seed = int(m_seed.group(1))
 
     parts = name.split("_")
-    selection = parts[1] if len(parts) > 1 else ""   # "random" (T1) ou "fedcs" (T2-T4)
+    selection = parts[1] if len(parts) > 1 else ""   # "random" (T1) ou "fedcs" (T2-T5)
     has_random_prune = "randomprune" in name
     has_budget = "_budget" in name
+    has_adaptive = "adarate" in name
 
     if selection == "random":
         method = "fedavg"
     elif selection == "fedcs":
         if has_random_prune:
             method = "fedcs_random_budget"
+        elif has_adaptive:
+            method = "fedcs_dc_adaptive"
         elif has_budget:
             method = "fedcs_dc_budget"
         else:

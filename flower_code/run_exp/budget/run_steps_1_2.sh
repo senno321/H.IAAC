@@ -70,6 +70,13 @@ BUDGET_VALUE="${BUDGET_VALUE:-0}"
 # seu subdiretório próprio, então só sobrescreve o run de mesma config). Override por env.
 EXP_TAG="${EXP_TAG:-steps12}"
 
+# ── Knobs da taxa adaptativa (T5, sobrescrevíveis por env) ──
+#   ADAPTIVE_COST: "time" (usa training_ms) | "energy" (usa training_mJ)
+#   ADAPTIVE_MIN/MAX: multiplicador sobre pf/pl (rápido -> MIN, lento -> MAX)
+ADAPTIVE_COST="${ADAPTIVE_COST:-time}"
+ADAPTIVE_MIN="${ADAPTIVE_MIN:-0.7}"
+ADAPTIVE_MAX="${ADAPTIVE_MAX:-1.3}"
+
 # ── Quais testes rodar (default: todos) ──
 # O T1 (FedAvg) já foi rodado; por isso o default aqui é PULAR o T1.
 # Para rodar tudo de novo: RUN_T1=true ./run_exp/budget/run_steps_1_2.sh ...
@@ -77,13 +84,15 @@ RUN_T1="${RUN_T1:-false}"
 RUN_T2="${RUN_T2:-true}"
 RUN_T3="${RUN_T3:-true}"
 RUN_T4="${RUN_T4:-true}"
+# T5 (FedCS DC + taxa adaptativa por cliente) — a "ideia original" refinada.
+RUN_T5="${RUN_T5:-true}"
 
 beta_for_alpha() {
   if [ "$1" = "0.1" ]; then echo "0.65"; else echo "0.5"; fi
 }
 
 N_TESTS=0
-for _t in "$RUN_T1" "$RUN_T2" "$RUN_T3" "$RUN_T4"; do
+for _t in "$RUN_T1" "$RUN_T2" "$RUN_T3" "$RUN_T4" "$RUN_T5"; do
   [ "$_t" = true ] && N_TESTS=$((N_TESTS + 1))
 done
 TOTAL_RUNS=$(( ${#SEEDS[@]} * ${#ALPHAS[@]} * N_TESTS ))
@@ -94,7 +103,7 @@ echo "  Federation: $FED"
 echo "  Seeds: ${SEEDS[*]} | Alphas: ${ALPHAS[*]}"
 echo "  Model: $MODEL | rounds=$N_ROUNDS pretrain=$PRETRAIN epochs=$EPOCHS"
 echo "  Budget: mode=$BUDGET_MODE percentile=$BUDGET_PERCENTILE value=$BUDGET_VALUE"
-echo "  Tests: T1=$RUN_T1 T2=$RUN_T2 T3=$RUN_T3 T4=$RUN_T4"
+echo "  Tests: T1=$RUN_T1 T2=$RUN_T2 T3=$RUN_T3 T4=$RUN_T4 T5=$RUN_T5"
 echo "  Exp folder: outputs/$EXP_TAG/"
 echo "  clients=$N_CLIENTS participants=$N_PART | Total runs: $TOTAL_RUNS"
 echo "============================================================"
@@ -109,6 +118,9 @@ COMMON="num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num
 
 # Fragmento do orçamento (T2 e T3).
 BUDGET="budget-mode=\"$BUDGET_MODE\" budget-percentile=$BUDGET_PERCENTILE budget-value=$BUDGET_VALUE"
+
+# Fragmento da taxa adaptativa (T5).
+ADAPTIVE="adaptive-rate=true adaptive-rate-cost=\"$ADAPTIVE_COST\" adaptive-rate-min=$ADAPTIVE_MIN adaptive-rate-max=$ADAPTIVE_MAX"
 
 for SEED in "${SEEDS[@]}"; do
   for ALPHA in "${ALPHAS[@]}"; do
@@ -136,6 +148,13 @@ for SEED in "${SEEDS[@]}"; do
     if [ "$RUN_T4" = true ]; then
       run_single "T4 FedCS-DC+fixed   | seed=$SEED alpha=$ALPHA beta=$BETA" \
         "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=false budget-mode=\"off\" $COMMON"
+    fi
+
+    # ── T5: FedCS DC + taxa adaptativa por cliente (ciente de recursos) ──
+    # Mantém o double pruning; só a taxa pf/pl vira por-cliente, calibrada à capacidade.
+    if [ "$RUN_T5" = true ]; then
+      run_single "T5 FedCS-DC+adarate  | seed=$SEED alpha=$ALPHA beta=$BETA" \
+        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=false budget-mode=\"off\" $ADAPTIVE $COMMON"
     fi
   done
 done
