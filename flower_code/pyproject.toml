@@ -144,6 +144,12 @@ adaptive-rate-max = 1.3
 # Upper cap on the resulting per-client rate (avoids pruning ~everything).
 adaptive-rate-cap = 0.95
 
+# Per-class floor (N8): keep at least max(prune-floor-abs, ceil(prune-floor-frac * n_k))
+# samples per class after pruning, so rare/mid classes are not decimated in non-IID.
+# Defaults (abs=1, frac=0.0) reproduce the legacy ">=1 per class" behavior exactly.
+prune-floor-abs = 1
+prune-floor-frac = 0.0
+
 [tool.flwr.federations]
 default = "local-simulation"
 

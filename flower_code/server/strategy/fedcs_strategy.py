@@ -41,6 +41,8 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         adaptive_rate_min: float = 0.7,
         adaptive_rate_max: float = 1.3,
         adaptive_rate_cap: float = 0.95,
+        prune_floor_abs: int = 1,
+        prune_floor_frac: float = 0.0,
         **kwargs,
     ):
         cache_path = ".cache_fedcs"
@@ -68,6 +70,9 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         self.adaptive_rate_min = float(adaptive_rate_min)
         self.adaptive_rate_max = float(adaptive_rate_max)
         self.adaptive_rate_cap = float(adaptive_rate_cap)
+        # Per-class floor (N8): mínimo de amostras mantidas por classe na poda.
+        self.prune_floor_abs = int(prune_floor_abs)
+        self.prune_floor_frac = float(prune_floor_frac)
         self._transition_round: Optional[int] = None
 
         self.global_class_centers = None
@@ -228,11 +233,16 @@ class FedCSRandomConstant(FedAvgRandomConstant):
                 f"{self.adaptive_rate_min}_{self.adaptive_rate_max}"
             )
 
+        # Distinguish per-class floor runs (N8) so they don't collide with the base run.
+        floor_tag = ""
+        if self.prune_floor_abs > 1 or self.prune_floor_frac > 0.0:
+            floor_tag = f"_floora{self.prune_floor_abs}f{self.prune_floor_frac}"
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"{pretrain_label}{prune_mode_tag}{budget_tag}{adaptive_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_mode_tag}{budget_tag}{adaptive_tag}{floor_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")
@@ -264,6 +274,8 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             "pf": self.pf,
             "pl": self.pl,
             "random_prune": self.random_prune,
+            "prune_floor_abs": self.prune_floor_abs,
+            "prune_floor_frac": self.prune_floor_frac,
         }
 
         # Na fase de Poda, enviamos os Centros Globais

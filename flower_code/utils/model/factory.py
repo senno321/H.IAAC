@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torchvision.models import shufflenet_v2_x0_5, resnext50_32x4d, mobilenet_v2
+from torchvision.models import shufflenet_v2_x0_5, resnext50_32x4d, mobilenet_v2, resnet18
 
 # ========== CONSTANTS ========== #
 N_MELS = 80  # Whisper/Log-Mel comum
@@ -250,6 +250,10 @@ class ModelFactory:
             return model
         elif model_name == "Resnext50_32x4d":
             model = resnext50_32x4d(weights=None)
+            model.fc = nn.Linear(model.fc.in_features, int(kwargs['num_classes']))
+            return model
+        elif model_name == "Resnet_18":
+            model = resnet18(weights=None)
             model.fc = nn.Linear(model.fc.in_features, int(kwargs['num_classes']))
             return model
         elif model_name == "Lstm":

@@ -13,12 +13,18 @@ um subdiretório cujo NOME codifica método/alpha/seed, ex.:
 Cada subdiretório tem model_performance.json (cen_accuracy/cen_loss por rodada) e
 system_performance.json (total_mJ, total_training_ms, max_training_round_ms por rodada).
 
+Também reconhece o T5 (adarate, taxa adaptativa) e o T6 (randomprune sem budget =
+Random + taxa fixa, ablação do DC no setup do artigo).
+
 Produz (em <exp-dir>/plots por padrão):
     - curvas de acurácia e loss por rodada (média ± desvio entre seeds)
     - acurácia vs energia acumulada e vs tempo de parede acumulado (eficiência)
     - barras de energia total, tempo total e acurácia final
     - dashboard combinado por alpha
-    - summary_table.csv, results_table.tex e resumo no terminal
+    - summary_table.csv (inclui acc_lastN_mean/std), results_table.tex e resumo no terminal
+
+A métrica principal é a MÉDIA DAS ÚLTIMAS N RODADAS (--last-n, default 20), mais
+estável que a acurácia da última rodada (que oscila bastante rodada a rodada).
 
 Uso:
     python analyze_budget_results.py                          # usa outputs/steps12
@@ -54,6 +60,9 @@ METHOD_LABELS = {
     "fedcs_random_budget": "FedCS Random + orçamento (T3)",
     "fedcs_dc_fixed": "FedCS DC + taxa fixa (T4)",
     "fedcs_dc_adaptive": "FedCS DC + taxa adaptativa (T5, proposta)",
+    "fedcs_random_fixed": "FedCS Random + taxa fixa (T6, ablação DC)",
+    "fedcs_dc_recompute": "FedCS DC recompute + A14 (T7, trilha principal)",
+    "fedcs_dc_adaptive_floor": "FedCS DC + A14 + piso por classe (T8, N8)",
 }
 
 METHOD_COLORS = {
@@ -62,10 +71,14 @@ METHOD_COLORS = {
     "fedcs_random_budget": "#55A868",
     "fedcs_dc_fixed": "#4C72B0",
     "fedcs_dc_adaptive": "#9932CC",   # destaque: a proposta refinada
+    "fedcs_random_fixed": "#C44E52",
+    "fedcs_dc_recompute": "#E1A100",  # destaque: trilha principal
+    "fedcs_dc_adaptive_floor": "#2AA198",  # destaque: A14 + N8
 }
 
 METHOD_ORDER = ["fedavg", "fedcs_dc_budget", "fedcs_random_budget",
-                "fedcs_dc_fixed", "fedcs_dc_adaptive"]
+                "fedcs_dc_fixed", "fedcs_dc_adaptive", "fedcs_random_fixed",
+                "fedcs_dc_recompute", "fedcs_dc_adaptive_floor"]
 
 
 def parse_args():
@@ -74,6 +87,9 @@ def parse_args():
                    help="Pasta do experimento (default: outputs/steps12)")
     p.add_argument("--out-dir", type=Path, default=None,
                    help="Onde salvar as figuras (default: <exp-dir>/plots)")
+    p.add_argument("--last-n", type=int, default=20,
+                   help="Nº de rodadas finais para a média-últimas-N (default: 20). "
+                        "Métrica mais estável que a acurácia da última rodada (ruidosa).")
     return p.parse_args()
 
 
@@ -88,18 +104,28 @@ def parse_run_name(name: str):
     seed = int(m_seed.group(1))
 
     parts = name.split("_")
-    selection = parts[1] if len(parts) > 1 else ""   # "random" (T1) ou "fedcs" (T2-T5)
+    selection = parts[1] if len(parts) > 1 else ""   # "random" (T1) ou "fedcs"/"fedcs_dynamic"
     has_random_prune = "randomprune" in name
     has_budget = "_budget" in name
     has_adaptive = "adarate" in name
+    # Piso por classe (N8): tag "_floora<abs>f<frac>" no nome da pasta.
+    has_floor = "floora" in name or "_floor" in name
+    # Poda dinâmica (recompute do DC): selection-name="fedcs_dynamic" gera "_dynamic_"
+    # no nome e/ou o tag "_prune<r>..." das rodadas de recompute.
+    has_recompute = ("_dynamic_" in name) or ("_prune" in name)
 
     if selection == "random":
         method = "fedavg"
     elif selection == "fedcs":
-        if has_random_prune:
-            method = "fedcs_random_budget"
+        if has_recompute:
+            # T7 = recompute do DC (dinâmico) por cima do A14 (adaptativo). Trilha principal.
+            method = "fedcs_dc_recompute"
+        elif has_random_prune:
+            # Random + orçamento (T3) vs Random + taxa fixa (T6): o "_budget" desempata.
+            method = "fedcs_random_budget" if has_budget else "fedcs_random_fixed"
         elif has_adaptive:
-            method = "fedcs_dc_adaptive"
+            # A14 + piso por classe (T8) vs A14 puro (T5): o "floora" desempata.
+            method = "fedcs_dc_adaptive_floor" if has_floor else "fedcs_dc_adaptive"
         elif has_budget:
             method = "fedcs_dc_budget"
         else:
@@ -360,20 +386,39 @@ def _final_and_best(seed_data):
     return finals, bests
 
 
-def save_summary_csv(runs, out_dir: Path):
-    lines = ["method,alpha,n_seeds,final_acc_mean,final_acc_std,best_acc_mean,"
-             "energy_J_mean,energy_J_std,walltime_s_mean,walltime_s_std"]
+def _last_n_acc(seed_data, n):
+    """Por seed: média da acurácia das últimas `n` rodadas. Retorna lista (uma por seed).
+
+    Mais robusta que a acurácia da última rodada, que oscila bastante rodada a rodada.
+    Se um seed tiver menos de `n` rodadas, usa todas as disponíveis.
+    """
+    per_seed = []
+    for d in seed_data.values():
+        if not d["accuracy"]:
+            continue
+        vals = [v for _, v in d["accuracy"]]
+        tail = vals[-n:] if n > 0 else vals
+        per_seed.append(float(np.mean(tail)))
+    return per_seed
+
+
+def save_summary_csv(runs, out_dir: Path, last_n: int = 20):
+    lines = [f"method,alpha,n_seeds,final_acc_mean,final_acc_std,"
+             f"acc_last{last_n}_mean,acc_last{last_n}_std,best_acc_mean,"
+             f"energy_J_mean,energy_J_std,walltime_s_mean,walltime_s_std"]
     for method in sorted_methods(runs):
         for alpha in all_alphas(runs):
             sd = runs.get(method, {}).get(alpha, {})
             if not sd:
                 continue
             finals, bests = _final_and_best(sd)
+            lastn = _last_n_acc(sd, last_n)
             energies = [d["energy_total"] / 1000.0 for d in sd.values()]
             walls = [d["walltime_total"] / 1000.0 for d in sd.values()]
             lines.append(
                 f"{method},{alpha},{len(sd)},"
-                f"{np.mean(finals):.6f},{np.std(finals):.6f},{np.mean(bests):.6f},"
+                f"{np.mean(finals):.6f},{np.std(finals):.6f},"
+                f"{np.mean(lastn):.6f},{np.std(lastn):.6f},{np.mean(bests):.6f},"
                 f"{np.mean(energies):.2f},{np.std(energies):.2f},"
                 f"{np.mean(walls):.2f},{np.std(walls):.2f}"
             )
@@ -382,11 +427,12 @@ def save_summary_csv(runs, out_dir: Path):
     print(f"[OK] {out}")
 
 
-def save_latex_table(runs, out_dir: Path):
+def save_latex_table(runs, out_dir: Path, last_n: int = 20):
     alphas = all_alphas(runs)
     lines = [
         r"\begin{table}[htbp]", r"\centering",
-        r"\caption{Acurácia final (\% média $\pm$ std entre seeds).}",
+        r"\caption{Acurácia (\% média $\pm$ std entre seeds), medida como média das "
+        f"últimas {last_n} rodadas (mais estável que a última rodada)." + r"}",
         r"\label{tab:budget_results}",
         r"\begin{tabular}{l" + "c" * len(alphas) + "}",
         r"\toprule",
@@ -397,9 +443,9 @@ def save_latex_table(runs, out_dir: Path):
         row = [label(method)]
         for alpha in alphas:
             sd = runs.get(method, {}).get(alpha, {})
-            finals, _ = _final_and_best(sd) if sd else ([], [])
-            if finals:
-                row.append(f"${np.mean(finals) * 100:.2f} \\pm {np.std(finals) * 100:.2f}$")
+            lastn = _last_n_acc(sd, last_n) if sd else []
+            if lastn:
+                row.append(f"${np.mean(lastn) * 100:.2f} \\pm {np.std(lastn) * 100:.2f}$")
             else:
                 row.append("---")
         lines.append(" & ".join(row) + r" \\")
@@ -409,27 +455,28 @@ def save_latex_table(runs, out_dir: Path):
     print(f"[OK] {out}")
 
 
-def print_summary(runs, skipped):
+def print_summary(runs, skipped, last_n: int = 20):
     alphas = all_alphas(runs)
     print("\n" + "=" * 78)
-    print("  RESUMO — acurácia final (%) e energia (J), média ± std entre seeds")
+    print(f"  RESUMO — acurácia média-últimas-{last_n} rodadas (%) / energia (J), "
+          f"média ± std entre seeds")
     print("=" * 78)
-    header = f"{'Método':<38}"
+    header = f"{'Método':<40}"
     for a in alphas:
         header += f"{'α=' + a:>20}"
     print(header)
     print("-" * 78)
     for method in sorted_methods(runs):
-        row = f"{label(method):<38}"
+        row = f"{label(method):<40}"
         for alpha in alphas:
             sd = runs.get(method, {}).get(alpha, {})
             if not sd:
                 row += f"{'—':>20}"
                 continue
-            finals, _ = _final_and_best(sd)
+            lastn = _last_n_acc(sd, last_n)
             energies = [d["energy_total"] / 1000.0 for d in sd.values()]
-            if finals:
-                row += f"  {np.mean(finals) * 100:5.2f}% / {np.mean(energies):7.0f}J"
+            if lastn:
+                row += f"  {np.mean(lastn) * 100:5.2f}% / {np.mean(energies):7.0f}J"
             else:
                 row += f"{'sem dados':>20}"
         print(row)
@@ -468,9 +515,9 @@ def main():
 
     plot_dashboard(runs, out_dir)
     plot_bars(runs, out_dir)
-    save_summary_csv(runs, out_dir)
-    save_latex_table(runs, out_dir)
-    print_summary(runs, skipped)
+    save_summary_csv(runs, out_dir, args.last_n)
+    save_latex_table(runs, out_dir, args.last_n)
+    print_summary(runs, skipped, args.last_n)
     print(f"\nFiguras e tabelas em: {out_dir}")
 
 

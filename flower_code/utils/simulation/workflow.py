@@ -258,6 +258,8 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 adaptive_rate_min = float(context.run_config.get("adaptive-rate-min", 0.7))
                 adaptive_rate_max = float(context.run_config.get("adaptive-rate-max", 1.3))
                 adaptive_rate_cap = float(context.run_config.get("adaptive-rate-cap", 0.95))
+                prune_floor_abs = int(context.run_config.get("prune-floor-abs", 1))
+                prune_floor_frac = float(context.run_config.get("prune-floor-frac", 0.0))
 
                 strategy = FedCSRandomConstant(
                     repr="FedCSRandomConstant",
@@ -279,6 +281,8 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     adaptive_rate_min=adaptive_rate_min,
                     adaptive_rate_max=adaptive_rate_max,
                     adaptive_rate_cap=adaptive_rate_cap,
+                    prune_floor_abs=prune_floor_abs,
+                    prune_floor_frac=prune_floor_frac,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,
@@ -298,6 +302,17 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                 pf = float(context.run_config.get("pf", 0.5))
                 pl = float(context.run_config.get("pl", 0.2))
                 prune_rounds = _parse_prune_rounds(context.run_config.get("prune-rounds", ""))
+                random_prune = bool(context.run_config.get("random-prune", False))
+                # Recompute do DC (poda dinâmica) COMBINA com a taxa adaptativa (A14):
+                # o A14 define pf_i/pl_i por cliente e o recompute os aplica com features
+                # mais maduras a cada evento de poda. Repassa os mesmos knobs do branch fedcs.
+                adaptive_rate = bool(context.run_config.get("adaptive-rate", False))
+                adaptive_rate_cost = str(context.run_config.get("adaptive-rate-cost", "time"))
+                adaptive_rate_min = float(context.run_config.get("adaptive-rate-min", 0.7))
+                adaptive_rate_max = float(context.run_config.get("adaptive-rate-max", 1.3))
+                adaptive_rate_cap = float(context.run_config.get("adaptive-rate-cap", 0.95))
+                prune_floor_abs = int(context.run_config.get("prune-floor-abs", 1))
+                prune_floor_frac = float(context.run_config.get("prune-floor-frac", 0.0))
 
                 strategy = FedCSDynamicRandomConstant(
                     repr="FedCSDynamicRandomConstant",
@@ -306,6 +321,14 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     pf=pf,
                     pl=pl,
                     prune_rounds=prune_rounds,
+                    random_prune=random_prune,
+                    adaptive_rate=adaptive_rate,
+                    adaptive_rate_cost=adaptive_rate_cost,
+                    adaptive_rate_min=adaptive_rate_min,
+                    adaptive_rate_max=adaptive_rate_max,
+                    adaptive_rate_cap=adaptive_rate_cap,
+                    prune_floor_abs=prune_floor_abs,
+                    prune_floor_frac=prune_floor_frac,
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,

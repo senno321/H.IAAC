@@ -27,7 +27,13 @@ class FedCSClient(BaseClient):
         self.cache_dir = ".cache_fedcs"
         os.makedirs(self.cache_dir, exist_ok=True)
         self.prune_state_file = os.path.join(self.cache_dir, f"client_{cid}_prune_state.pkl")
-        
+
+        # Dataset ORIGINAL (full-data deste cliente), capturado ANTES de qualquer poda.
+        # Recompute do DC (poda dinâmica) precisa re-selecionar a partir do full-data;
+        # sem isso, um novo evento de poda re-podaria o subset já podado (só encolhe).
+        # Todos os índices de poda são mantidos SEMPRE no espaço deste dataset original.
+        self.original_dataset = self.dataloader.dataset
+
         # Tenta carregar o estado podado AUTOMATICAMENTE ao inicializar
         # Se este cliente já foi podado em rodadas anteriores, recuperamos o estado aqui
         self._try_load_pruned_state()
@@ -66,19 +72,15 @@ class FedCSClient(BaseClient):
         return self.is_pruned and self.last_prune_event_id >= prune_event_id
 
     def _recreate_dataloader(self, indices_to_keep):
-        """Função auxiliar para recriar o DataLoader com um Subset."""
-        original_dataset = self.dataloader.dataset
-        
-        # Lida com Subset recursivo (se já for um subset, volta para o pai)
-        if isinstance(original_dataset, Subset):
-             source_indices = original_dataset.indices
-             # Traduz os índices novos para os índices do dataset original
-             final_indices = [source_indices[i] for i in indices_to_keep]
-             dataset_real = original_dataset.dataset
-             pruned_dataset = Subset(dataset_real, final_indices)
-        else:
-             pruned_dataset = Subset(original_dataset, indices_to_keep)
-        
+        """Recria o DataLoader com um Subset do dataset ORIGINAL.
+
+        Os `indices_to_keep` são sempre relativos a `self.original_dataset` (full-data
+        do cliente), então o rebuild independe de o dataloader atual já estar podado.
+        Isso mantém o comportamento estático (evento único: original == atual) e habilita
+        o recompute dinâmico (re-seleção a partir do full-data).
+        """
+        pruned_dataset = Subset(self.original_dataset, list(indices_to_keep))
+
         self.dataloader = DataLoader(
             pruned_dataset,
             batch_size=self.dataloader.batch_size,
@@ -172,11 +174,17 @@ class FedCSClient(BaseClient):
                     log.error(f"Client {self.cid}: failed to read target_keep: {e}")
                     target_keep = None
 
+            # Per-class floor (N8): keep at least max(floor_abs, ceil(floor_frac*n_k))
+            # samples per class, so rare/mid classes are not decimated in non-IID.
+            floor_abs = int(config.get("prune_floor_abs", 1))
+            floor_frac = float(config.get("prune_floor_frac", 0.0))
+
             global_centers = pickle.loads(config["global_centers"])
             self._prune_dataset(
                 global_centers, prune_event_id=prune_event_id,
                 beta=beta, pf=pf, pl=pl, random_prune=random_prune,
                 target_keep=target_keep,
+                floor_abs=floor_abs, floor_frac=floor_frac,
             )
 
             return super().fit(parameters, config)
@@ -188,12 +196,17 @@ class FedCSClient(BaseClient):
             
         return super().fit(parameters, config)
 
-    def _get_features_and_labels(self):
+    def _get_features_and_labels(self, dataset=None):
         """
         Roda inferência no dataset local e extrai (features, labels).
         Uses a non-shuffled, non-dropping DataLoader so that features[i]
         maps deterministically to dataset[i], which is required for
         correct pruning index computation.
+
+        Extrai do dataset ORIGINAL por padrão (full-data do cliente), de modo que os
+        índices computados no pruning fiquem sempre no espaço original. Isso é o que
+        permite o recompute do DC re-selecionar a partir do full-data (e não do subset
+        já podado). No evento único de poda, original == atual, então nada muda.
         """
         self.model.eval()
         self.model.to(self.device)
@@ -201,8 +214,9 @@ class FedCSClient(BaseClient):
         features_list = []
         labels_list = []
 
+        source_dataset = dataset if dataset is not None else self.original_dataset
         extraction_loader = DataLoader(
-            self.dataloader.dataset,
+            source_dataset,
             batch_size=self.dataloader.batch_size,
             shuffle=False,
             num_workers=self.dataloader.num_workers,
@@ -291,6 +305,32 @@ class FedCSClient(BaseClient):
         self.last_prune_event_id = prune_event_id
         return indices_to_keep
 
+    def _enforce_class_floor(self, indices_to_keep, labels, dc_scores, floor_abs=1, floor_frac=0.0):
+        """Per-class floor (N8): keep >= max(floor_abs, ceil(floor_frac*n_k)) per class.
+
+        Generaliza o antigo ">=1 por classe" (floor_abs=1, floor_frac=0). Se uma classe
+        ficou abaixo do piso, readiciona as amostras de MENOR DC (mais informativas) dela
+        até atingir o piso. Só ADICIONA — nunca remove — então funciona como piso puro.
+        """
+        keep_set = set(int(i) for i in indices_to_keep)
+        floor_abs = int(floor_abs)
+        floor_frac = float(floor_frac)
+
+        for cls in np.unique(labels):
+            cls_indices = np.where(labels == cls)[0]
+            n_k = len(cls_indices)
+            floor_k = min(n_k, max(floor_abs, int(np.ceil(floor_frac * n_k))))
+
+            kept_in_cls = [int(i) for i in cls_indices if int(i) in keep_set]
+            need = floor_k - len(kept_in_cls)
+            if need > 0:
+                not_kept = [int(i) for i in cls_indices if int(i) not in keep_set]
+                not_kept.sort(key=lambda i: dc_scores[i])  # menor DC primeiro
+                for i in not_kept[:need]:
+                    keep_set.add(i)
+
+        return sorted(keep_set)
+
     def _prune_dataset(
         self,
         global_centers: Dict[int, np.ndarray],
@@ -300,6 +340,8 @@ class FedCSClient(BaseClient):
         pl: float,
         random_prune: bool = False,
         target_keep: int = None,
+        floor_abs: int = 1,
+        floor_frac: float = 0.0,
     ):
         """
         Paper-faithful double pruning (Algorithm 1 from FedCS, CVPR 2025).
@@ -377,13 +419,8 @@ class FedCSClient(BaseClient):
                 order = np.argsort(dc_scores)
                 keep = list(order[:target_keep])
 
-            keep_set = set(int(i) for i in keep)
-            # Guarantee at least 1 sample per class present on this client.
-            for cls in unique_labels:
-                cls_indices = np.where(labels == cls)[0]
-                if not any(i in keep_set for i in cls_indices):
-                    best = int(cls_indices[np.argmin(dc_scores[cls_indices])])
-                    keep_set.add(best)
+            # Per-class floor (N8): >= max(floor_abs, ceil(floor_frac*n_k)) por classe.
+            keep_set = self._enforce_class_floor(keep, labels, dc_scores, floor_abs, floor_frac)
 
             indices_to_keep = self._persist_and_apply_keep(keep_set, prune_event_id)
             mode = "RANDOM" if random_prune else "DC"
@@ -452,13 +489,11 @@ class FedCSClient(BaseClient):
         all_removed = phase1_remove | phase2_remove
         indices_to_keep = sorted([i for i in all_indices if i not in all_removed])
 
-        # Guarantee at least 1 sample per class present on this client
-        for cls in unique:
-            cls_indices = np.where(labels == cls)[0]
-            if not any(i in indices_to_keep for i in cls_indices):
-                best = cls_indices[np.argmin(dc_scores[cls_indices])]
-                indices_to_keep.append(int(best))
-        indices_to_keep = sorted(set(indices_to_keep))
+        # Per-class floor (N8): >= max(floor_abs, ceil(floor_frac*n_k)) por classe.
+        # Generaliza o antigo ">=1 por classe" (default floor_abs=1, floor_frac=0).
+        indices_to_keep = self._enforce_class_floor(
+            indices_to_keep, labels, dc_scores, floor_abs, floor_frac
+        )
 
         # --- Persistence: save to disk ---
         try:
