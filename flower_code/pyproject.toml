@@ -178,6 +178,17 @@ options.backend.client-resources.num-gpus = 0.5
 options.backend.init_args.num_cpus = 25
 options.backend.init_args.num_gpus = 3
 
+# Paper CIFAR-10 setup: 10 clients with FULL participation. num-supernodes MUST
+# equal num-clients (=10); otherwise supernode ids > num-clients request a
+# partition that doesn't exist (KeyError in the Dirichlet partitioner).
+# client-resources.num-gpus=0.3 lets all 10 clients run concurrently on 3 GPUs.
+[tool.flwr.federations.gpu-sim-dl-10]
+options.num-supernodes = 10
+options.backend.client-resources.num-cpus = 2
+options.backend.client-resources.num-gpus = 0.3
+options.backend.init_args.num_cpus = 25
+options.backend.init_args.num_gpus = 3
+
 [tool.flwr.federations.gpu-sim-dl-16]
 options.num-supernodes = 100
 options.backend.client-resources.num-cpus = 2

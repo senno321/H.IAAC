@@ -238,11 +238,19 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         if self.prune_floor_abs > 1 or self.prune_floor_frac > 0.0:
             floor_tag = f"_floora{self.prune_floor_abs}f{self.prune_floor_frac}"
 
+        # Distinguish pruning-RATE sweeps (different pf/pl) so a pf sweep doesn't
+        # overwrite itself: pf/pl are NOT otherwise encoded in the dir name.
+        # Applies to fixed-rate AND adaptive (adaptive SCALES pf/pl, so pf still
+        # matters). Budget mode replaces pf/pl, so it's excluded.
+        rate_tag = ""
+        if self.budget_mode in (None, "", "off"):
+            rate_tag = f"_pf{self.pf}_pl{self.pl}"
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"{pretrain_label}{prune_mode_tag}{budget_tag}{adaptive_tag}{floor_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_mode_tag}{budget_tag}{adaptive_tag}{floor_tag}{rate_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")

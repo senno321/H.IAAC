@@ -21,15 +21,20 @@
 #
 # Métrica do paper: média das últimas 100 épocas (use --last-n 100 na análise).
 #
+# IMPORTANTE — FEDERAÇÃO: este setup usa 10 clientes, então a federação PRECISA ter
+# num-supernodes = 10 (senão o particionador Dirichlet dá KeyError, pois supernode
+# id > num-clients pede uma partição inexistente). Use a federação "gpu-sim-dl-10"
+# (criada no pyproject.toml). NÃO use gpu-sim-dl (100 supernodes) aqui.
+#
 # Usage:
 #   ./run_exp/budget/run_paper_cifar10.sh [federation] [--skip-setup] [--dry-run] [--no-log]
 #
 # Exemplos:
-#   ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl --dry-run
-#   nohup ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl >/dev/null 2>&1 &
+#   ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl-10 --dry-run
+#   nohup ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl-10 >/dev/null 2>&1 &
 #   PF_LIST="0.3 0.5 0.7" SEEDS_OVERRIDE="1 2 3 4 5" \
-#     ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl        # sweep completo, 5 seeds
-#   ALPHAS_OVERRIDE="0.1" ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl  # só α=0.1
+#     ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl-10        # sweep completo, 5 seeds
+#   ALPHAS_OVERRIDE="0.1" ./run_exp/budget/run_paper_cifar10.sh gpu-sim-dl-10  # só α=0.1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
@@ -100,6 +105,19 @@ RUN_T1="${RUN_T1:-true}"    # FedAvg (teto/whole-dataset)
 RUN_T4="${RUN_T4:-true}"    # FedCS DC + taxa fixa (paper)
 RUN_T6="${RUN_T6:-true}"    # FedCS Random + taxa fixa (ablação)
 RUN_T5="${RUN_T5:-false}"   # FedCS DC + taxa adaptativa (A14) — opcional
+
+# Guarda: este setup exige federação com num-supernodes = num-clients (=10).
+# As federações "*-100"/gpu-sim-dl (100 supernodes) causam KeyError no particionador.
+case "$FED" in
+  *-100|gpu-sim-dl|gpu-sim-dl-16|gpu-sim-dl-17|gpu-sim-dl-02|gpu-sim-dl-24|gpu-sim-lrc)
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "  ATENÇÃO: '$FED' tem 100 supernodes, mas este setup usa 10 clientes."
+    echo "  Isso vai dar KeyError no particionador. Use 'gpu-sim-dl-10'."
+    echo "  Abortando."
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    exit 1
+    ;;
+esac
 
 beta_for_alpha() {
   if [ "$1" = "0.1" ]; then echo "0.65"; else echo "0.5"; fi
