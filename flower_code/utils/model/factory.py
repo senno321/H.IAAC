@@ -238,30 +238,36 @@ def convert_bn_to_gn(module, max_groups=32):
 class ModelFactory:
     @staticmethod
     def create(model_name, **kwargs):
+        # norm: "bn" (default, torchvision BatchNorm) | "gn" (BatchNorm->GroupNorm).
+        # GN é opcional e serve para estabilizar o pré-treino em FL não-IID, onde a
+        # BatchNorm sofre com estatísticas de batch enviesadas por cliente.
+        norm = str(kwargs.get("norm", "bn")).lower()
+
         if model_name == 'simplecnn':
-            return SimpleCNN(kwargs['input_shape'], int(kwargs['num_classes']))
+            model = SimpleCNN(kwargs['input_shape'], int(kwargs['num_classes']))
         elif model_name == 'Mobilenet_v2':
             model = mobilenet_v2(weights=None)
             model.classifier[1] = nn.Linear(model.last_channel, int(kwargs['num_classes']))
-            return model
         elif model_name == "Shufflenet_v2_x0_5":
             model = shufflenet_v2_x0_5(weights=None)
             model.fc = nn.Linear(model.fc.in_features, int(kwargs['num_classes']))
-            return model
         elif model_name == "Resnext50_32x4d":
             model = resnext50_32x4d(weights=None)
             model.fc = nn.Linear(model.fc.in_features, int(kwargs['num_classes']))
-            return model
         elif model_name == "Resnet_18":
             model = resnet18(weights=None)
             model.fc = nn.Linear(model.fc.in_features, int(kwargs['num_classes']))
-            return model
         elif model_name == "Lstm":
             model = StackedLSTM()
-            return model
         elif model_name == "CRNNResNetAttn":
             model = CRNNResNetAttn(num_classes=int(kwargs['num_classes']), base=64, lstm_hidden=256, lstm_layers=2, attn_dim=128,
                                    dropout=0.1, )
-            return model
         else:
             raise ValueError(f"Modelo desconhecido: {model_name}")
+
+        # No-op em modelos sem BatchNorm2d (simplecnn/lstm/crnn); converte in-place
+        # nos backbones torchvision (shufflenet/resnet/resnext/mobilenet).
+        if norm in ("gn", "groupnorm"):
+            convert_bn_to_gn(model)
+
+        return model

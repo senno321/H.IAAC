@@ -397,6 +397,21 @@ class FedCSClient(BaseClient):
 
             dc_scores[valid_idx] = np.abs(d_min - d_correct)
 
+            # Pretrain probe (Gate 2): are the features discriminative enough for the DC
+            # criterion to be meaningful? nn_center_acc = fraction of samples whose OWN
+            # class center is the nearest one (== nearest-centroid accuracy in feature
+            # space); sep_ratio = mean(nearest other-center dist) / mean(own-center dist).
+            # Garbage features (non-converged pretrain) => nn_center_acc ~ chance and
+            # sep_ratio ~ 1, so DC ranks noise and loses to Random. Healthy features =>
+            # nn_center_acc high (>~0.5) and sep_ratio > 1.
+            nn_center_acc = float(np.mean(d_correct <= d_min))
+            mean_correct = float(np.mean(d_correct))
+            sep_ratio = float(np.mean(d_min) / mean_correct) if mean_correct > 0 else 0.0
+            print(
+                f" >>> [FedCS][probe] client {self.cid}: nn_center_acc={nn_center_acc:.3f} "
+                f"sep_ratio={sep_ratio:.3f} (n_valid={len(valid_idx)}, n_classes={n_classes})"
+            )
+
         # --- Capacity-budget pruning (FedCore-style): keep exactly target_keep samples ---
         # The budget (server-side) decides HOW MANY; the DC score decides WHICH ones.
         if target_keep is not None:

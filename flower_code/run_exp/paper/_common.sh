@@ -44,6 +44,9 @@ N_CLIENTS=100
 N_ROUNDS=100
 N_PART=10
 N_EVAL=10
+# Normalização do backbone gerada no .pth inicial: bn (padrão) | gn.
+# Scripts que não setam NORM mantêm o comportamento antigo (BatchNorm).
+NORM="${NORM:-bn}"
 
 parse_args() {
   for arg in "$@"; do
@@ -81,7 +84,8 @@ setup_model_and_profiles() {
       --sel "$sel_name" \
       --agg "$agg_name" \
       --input-shape "$INPUT_SHAPE" \
-      --num-classes "$NUM_CLASSES"
+      --num-classes "$NUM_CLASSES" \
+      --norm "$NORM"
 
     PYTHONPATH=. python gen_profile/gen_sim_profile.py \
       --config_file ./pyproject.toml --seed "$SEED"

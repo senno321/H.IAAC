@@ -17,8 +17,10 @@ class ModelPersistence:
         torch.save(model.state_dict(), path)
 
     @staticmethod
-    def load(path, model_name, **kwargs):
-        model = ModelFactory.create(model_name, **kwargs)
+    def load(path, model_name, norm="bn", **kwargs):
+        # `norm` define a arquitetura (bn/gn); o .pth em `path` precisa ter sido gerado
+        # com o MESMO norm (via gen_sim_model.py), senão load_state_dict falha.
+        model = ModelFactory.create(model_name, norm=norm, **kwargs)
         model.load_state_dict(torch.load(path))
         return model
 

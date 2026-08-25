@@ -62,7 +62,8 @@ def get_initial_parameters(context: Context):
     input_shape = _parse_input_shape(context.run_config['input-shape'])
     num_classes = context.run_config['num-classes']
     model_path = _resolve_model_path(context)
-    loaded_model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
+    norm = context.run_config.get("norm-layer", "bn")
+    loaded_model = ModelPersistence.load(model_path, model_name, norm=norm, input_shape=input_shape, num_classes=num_classes)
     ndarrays = get_weights(loaded_model)
     parameters = ndarrays_to_parameters(ndarrays)
 
@@ -74,7 +75,8 @@ def get_initial_model(context: Context):
     input_shape = _parse_input_shape(context.run_config['input-shape'])
     num_classes = context.run_config['num-classes']
     model_path = _resolve_model_path(context)
-    loaded_model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
+    norm = context.run_config.get("norm-layer", "bn")
+    loaded_model = ModelPersistence.load(model_path, model_name, norm=norm, input_shape=input_shape, num_classes=num_classes)
 
     return loaded_model
 
@@ -93,7 +95,8 @@ def get_model_memory_size_bits(context: Context):
     input_shape = _parse_input_shape(context.run_config['input-shape'])
     num_classes = context.run_config['num-classes']
     model_path = _resolve_model_path(context)
-    model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
+    norm = context.run_config.get("norm-layer", "bn")
+    model = ModelPersistence.load(model_path, model_name, norm=norm, input_shape=input_shape, num_classes=num_classes)
     size_in_bits = sum(p.numel() * p.element_size() * 8 for p in model.parameters())
 
     return size_in_bits
@@ -141,7 +144,8 @@ def get_eval_fn(context: Context, test_loader: DataLoader):
         input_shape = _parse_input_shape(context.run_config['input-shape'])
         num_classes = context.run_config['num-classes']
         model_path = _resolve_model_path(context)
-        model = ModelPersistence.load(model_path, model_name, input_shape=input_shape, num_classes=num_classes)
+        norm = context.run_config.get("norm-layer", "bn")
+        model = ModelPersistence.load(model_path, model_name, norm=norm, input_shape=input_shape, num_classes=num_classes)
         set_weights(model, parameters_ndarrays)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         loss, acc, _ = test(model, test_loader, device, dataset_id)

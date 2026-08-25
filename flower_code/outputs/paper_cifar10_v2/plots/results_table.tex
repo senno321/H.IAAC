@@ -1,0 +1,14 @@
+\begin{table}[htbp]
+\centering
+\caption{Acurácia (\% média $\pm$ std entre seeds), medida como média das últimas 50 rodadas (mais estável que a última rodada).}
+\label{tab:budget_results}
+\begin{tabular}{lcc}
+\toprule
+Método & $\alpha=0.1$ & $\alpha=1.0$ \\
+\midrule
+FedAvg (T1, teto) & $75.71 \pm 0.00$ & $83.35 \pm 0.00$ \\
+FedCS DC + taxa fixa (T4) & $66.70 \pm 0.00$ & $75.30 \pm 0.00$ \\
+FedCS Random + taxa fixa (T6, ablação DC) & $70.44 \pm 0.00$ & $77.75 \pm 0.00$ \\
+\bottomrule
+\end{tabular}
+\end{table}

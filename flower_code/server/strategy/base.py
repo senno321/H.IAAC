@@ -51,6 +51,11 @@ class BaseStrategy(Strategy):
         self.system_metrics_to_save = {}
         self.model_performance_path = None
         self.performance_metrics_to_save = {}
+        # Pretrain probe (Gate 1): aggregated client TRAIN metrics from the last
+        # aggregate_fit, persisted next to the centralized cen_* so train-vs-test
+        # divergence (BN under non-IID) is visible per round in model_performance.json.
+        self._last_fit_metrics = {}
+        self._last_fit_round = None
 
     def __repr__(self) -> str:
         return self.repr
@@ -85,6 +90,15 @@ class BaseStrategy(Strategy):
         loss, metrics = eval_res
 
         my_results = {"cen_loss": loss, **metrics}
+
+        # Pretrain probe (Gate 1): attach this round's aggregated TRAIN loss/acc so a
+        # reader can compare it with cen_loss/cen_accuracy. Clients training fine while
+        # centralized test explodes points to BatchNorm under non-IID (not LR/data).
+        if self._last_fit_round == server_round:
+            if "loss" in self._last_fit_metrics:
+                my_results["train_loss"] = self._last_fit_metrics["loss"]
+            if "acc" in self._last_fit_metrics:
+                my_results["train_acc"] = self._last_fit_metrics["acc"]
 
         # Insert into local dictionary
         self.performance_metrics_to_save[server_round] = my_results
@@ -151,7 +165,14 @@ class BaseStrategy(Strategy):
             self.save_round_system_metrics(cids_joules_consumption, selected_cids_training_time,
                                            max_round_training_time, server_round)
 
-        return self._do_aggregate_fit(server_round, results, failures)
+        parameters_aggregated, metrics_aggregated = self._do_aggregate_fit(server_round, results, failures)
+
+        # Pretrain probe (Gate 1): stash aggregated TRAIN metrics for the centralized
+        # evaluate() of this same round to persist alongside cen_*.
+        self._last_fit_metrics = dict(metrics_aggregated) if metrics_aggregated else {}
+        self._last_fit_round = server_round
+
+        return parameters_aggregated, metrics_aggregated
 
     def aggregate_evaluate(
             self,
