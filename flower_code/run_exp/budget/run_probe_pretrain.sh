@@ -20,6 +20,9 @@
 #
 # Setup enxuto p/ rodar em minutos, não horas:
 #   * ShuffleNet_v2_x0_5, 10 clientes, participação total
+#   * input 32x32 NATIVO (sem upscaling p/ 224): o probe diagnostica BN vs GN, que
+#     independe da resolução; e 224 força um Resize->CenterCrop na CPU que estrangula
+#     a GPU (~13 min/rodada). Em 32x32 o if de upscaling em dataset/config.py é pulado.
 #   * T = 8 rodadas, pretrain TP=4, 5 épocas locais, SGD + cosine, lr=0.01
 #   * seed=1, alpha=0.1 (não-IID mais severo = onde a divergência é pior)
 #
@@ -71,7 +74,9 @@ fi
 
 # ── Setup do probe ──
 MODEL="Shufflenet_v2_x0_5"
-INPUT_SHAPE="(3,224,224)"
+# 32x32 nativo: evita o Resize(256)->CenterCrop(224) na CPU (gargalo da GPU).
+# O diagnóstico BN vs GN não depende da resolução.
+INPUT_SHAPE="(3,32,32)"
 N_CLIENTS=10
 N_PART=10
 N_EVAL=10
