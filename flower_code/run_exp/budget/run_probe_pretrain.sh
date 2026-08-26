@@ -20,7 +20,7 @@
 #
 # Setup enxuto p/ rodar em minutos, não horas:
 #   * ShuffleNet_v2_x0_5, 10 clientes, participação total
-#   * T = 15 rodadas, pretrain TP=4, 5 épocas locais, SGD + cosine, lr=0.01
+#   * T = 8 rodadas, pretrain TP=4, 5 épocas locais, SGD + cosine, lr=0.01
 #   * seed=1, alpha=0.1 (não-IID mais severo = onde a divergência é pior)
 #
 # Federação: precisa de num-supernodes=10. Use "gpu-sim-dl-10".
@@ -33,6 +33,26 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/../paper/_common.sh"
 parse_args "$@"
+
+# ── Guarda de disco (o Ray grava em /tmp/ray por padrão) ──
+# Em servidor com a partição do /tmp cheia, o object store do Ray não consegue fazer
+# spill e a simulação TRAVA (foi o que aconteceu: / a 100%, run preso por horas).
+# Aponte RAY_TMPDIR para um disco com espaço e CAMINHO CURTO (limite de socket AF_UNIX),
+# ex.: export RAY_TMPDIR=/local2/<user>/ray_tmp. Ray respeita essa variável.
+if [ "$DRY_RUN" = false ]; then
+  tmp_avail_kb=$(df -Pk /tmp 2>/dev/null | awk 'NR==2{print $4}')
+  if [ -z "${RAY_TMPDIR:-}" ] && [ "${tmp_avail_kb:-0}" -lt 20000000 ]; then
+    echo "ERRO: /tmp com ~$(( ${tmp_avail_kb:-0} / 1024 / 1024 )) GB livres e RAY_TMPDIR não setado."
+    echo "      O Ray grava em /tmp/ray e TRAVA quando o disco enche."
+    echo "      Rode:  export RAY_TMPDIR=/local2/<seu_usuario>/ray_tmp   (curto, disco com espaço)"
+    echo "      e chame o script de novo."
+    exit 1
+  fi
+  if [ -n "${RAY_TMPDIR:-}" ]; then
+    mkdir -p "$RAY_TMPDIR"
+    echo ">> RAY_TMPDIR=$RAY_TMPDIR (Ray temp fora de /tmp)"
+  fi
+fi
 
 # ── Logging automático ──
 # Captura a saída completa, incluindo os prints [FedCS][probe] (Gate 2), que são
@@ -55,7 +75,9 @@ INPUT_SHAPE="(3,224,224)"
 N_CLIENTS=10
 N_PART=10
 N_EVAL=10
-N_ROUNDS=15
+# 8 rodadas bastam: a poda do FedCS cai na rodada 6 (pretrain 4 + 2), onde sai o
+# Gate 2; e o Gate 1 (GN estável vs BN divergente) já aparece nas rodadas 2-6.
+N_ROUNDS=8
 EPOCHS=5
 PRETRAIN=4
 PF="0.5"
@@ -65,6 +87,9 @@ AGG="fedavg"
 SEED=1
 ALPHA=0.1
 BETA=0.65
+# Gera o modelo/perfil para ESTE seed e evita o leak do loop de setup do _common
+# (for SEED in "${SEEDS[@]}" deixava SEED=4 e o run saía com seed errado).
+SEEDS=("$SEED")
 
 # Guarda: federação precisa ter num-supernodes=10.
 case "$FED" in
