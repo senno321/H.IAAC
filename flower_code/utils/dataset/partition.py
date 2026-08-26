@@ -337,8 +337,13 @@ class DatasetFactory:
             g = torch.Generator()
             g.manual_seed(seed)
 
+            # drop_last=True: descarta o batch parcial final. Em resolução baixa (ex. 32x32)
+            # a ShuffleNet colapsa o mapa espacial para 1x1 nas camadas profundas; um batch
+            # de tamanho 1 vira [1, C, 1, 1] = 1 valor por canal e a BatchNorm quebra em treino
+            # ("Expected more than 1 value per channel"). Dropar o resto (<= batch_size amostras
+            # por época) é o fix padrão e não afeta 224 (spatial 7x7 nunca colapsa).
             trainloader = DataLoader(partition_torch, batch_size=batch_size, shuffle=True, num_workers=0,
-                                     worker_init_fn=seed_worker, generator=g, drop_last=False)
+                                     worker_init_fn=seed_worker, generator=g, drop_last=True)
 
             cls._fds_partition_cache[cache_key] = trainloader
         else:

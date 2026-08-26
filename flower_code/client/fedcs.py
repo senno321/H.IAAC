@@ -81,12 +81,15 @@ class FedCSClient(BaseClient):
         """
         pruned_dataset = Subset(self.original_dataset, list(indices_to_keep))
 
+        # drop_last=True: mesmo motivo do loader base (utils/dataset/partition.py) — evita
+        # batch final de tamanho 1, que em resolução baixa (spatial 1x1) faz a BatchNorm
+        # quebrar em treino. Descarta no máximo <batch_size amostras da época.
         self.dataloader = DataLoader(
             pruned_dataset,
             batch_size=self.dataloader.batch_size,
             shuffle=True,
             num_workers=self.dataloader.num_workers,
-            drop_last=False,
+            drop_last=True,
         )
 
     def fit(self, parameters, config):
