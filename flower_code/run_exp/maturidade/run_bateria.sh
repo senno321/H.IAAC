@@ -35,7 +35,21 @@
 #   # Máquina B (outra metade):
 #   ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10 --shard 2 --nshards 2
 #   # Só alpha=0.1, modelo ResNet-CIFAR-GN em vez do SimpleCNN:
-#   MODEL=resnet_cifar ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10 --alpha 0.1
+#   MODEL_OVERRIDE=resnet_cifar ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10 --alpha 0.1
+#   # Run-teste curto (10 rodadas, 1 seed) para cravar tempo/rodada:
+#   N_ROUNDS_OVERRIDE=10 SEEDS_OVERRIDE=1 RUN_B0=false RUN_B1=false RUN_MATURITY=false RUN_E1=false \
+#     ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1
+#
+# Knobs por env (sufixo _OVERRIDE porque o _common.sh já define os nomes-base):
+#   MODEL_OVERRIDE, N_ROUNDS_OVERRIDE, EPOCHS_OVERRIDE, LR_OVERRIDE, PF_OVERRIDE,
+#   PL_OVERRIDE, SEEDS_OVERRIDE, ALPHAS_OVERRIDE, MATURITY_T_OVERRIDE.
+#
+# ── Disco / Ray (/tmp cheio em máquina compartilhada) ──
+#   O Ray grava a sessão/spill em /tmp/ray por padrão. Se o /tmp estiver cheio (comum
+#   em servidor compartilhado), exporte RAY_TMPDIR para um disco com espaço e CAMINHO
+#   CURTO (limite de socket AF_UNIX, ~107 chars) ANTES de rodar, no MESMO shell:
+#     export RAY_TMPDIR=/disco/com/espaco/ray_tmp   # ex.: seu /local2
+#   Confirme no log: as linhas do (raylet) devem citar esse caminho, não /tmp/ray.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
@@ -65,6 +79,25 @@ if ! [[ "$SHARD" =~ ^[0-9]+$ ]] || ! [[ "$NSHARDS" =~ ^[0-9]+$ ]] || [ "$NSHARDS
   exit 1
 fi
 
+# ── Guarda de disco (o Ray grava em /tmp/ray por padrão) ──
+# Em servidor compartilhado o /tmp costuma estar cheio; sem espaço, o object store do
+# Ray não faz spill e a simulação degrada/trava. Falha rápido se /tmp está apertado e
+# RAY_TMPDIR não foi setado, pedindo para apontar o Ray a um disco com espaço.
+if [ "$DRY_RUN" = false ]; then
+  tmp_avail_kb=$(df -Pk /tmp 2>/dev/null | awk 'NR==2{print $4}')
+  if [ -z "${RAY_TMPDIR:-}" ] && [ "${tmp_avail_kb:-0}" -lt 20000000 ]; then
+    echo "ERRO: /tmp com ~$(( ${tmp_avail_kb:-0} / 1024 / 1024 )) GB livres e RAY_TMPDIR não setado." >&2
+    echo "      O Ray grava em /tmp/ray e degrada/trava quando o disco enche." >&2
+    echo "      Rode (no MESMO shell, antes deste script):" >&2
+    echo "        export RAY_TMPDIR=/disco/com/espaco/ray_tmp   # caminho CURTO, ex.: seu /local2" >&2
+    exit 1
+  fi
+  if [ -n "${RAY_TMPDIR:-}" ]; then
+    mkdir -p "$RAY_TMPDIR"
+    echo ">> RAY_TMPDIR=$RAY_TMPDIR (Ray temp fora de /tmp)"
+  fi
+fi
+
 # ── Logging automático (bom para sessões SSH que podem cair) ──
 if [ "$NO_LOG" = false ]; then
   LOG_DIR="run_exp/maturidade/logs"
@@ -75,19 +108,24 @@ if [ "$NO_LOG" = false ]; then
 fi
 
 # ── Setup: CIFAR-10 nativo 32x32, 10 clientes, participação total ──
+# IMPORTANTE: o _common.sh define MODEL/EPOCHS/N_ROUNDS/etc. INCONDICIONALMENTE (com
+# valores do setup ShuffleNet@224). Por isso NÃO dá para sobrescrever com ${MODEL:-...}
+# (o valor do _common venceria). Usamos o sufixo _OVERRIDE (mesmo padrão de
+# SEEDS_OVERRIDE/ALPHAS_OVERRIDE) e ATRIBUÍMOS de novo aqui, vencendo o _common.
+#
 # MODEL default = simplecnn (destrava rápido, sem BatchNorm -> sem bug de batch 1).
-# Alternativa com mais teto: MODEL=resnet_cifar (ResNet-CIFAR-GN, ver factory.py).
-MODEL="${MODEL:-simplecnn}"
+# Alternativa com mais teto: MODEL_OVERRIDE=resnet_cifar (ResNet-CIFAR-GN, ver factory.py).
+MODEL="${MODEL_OVERRIDE:-simplecnn}"
 INPUT_SHAPE="(3,32,32)"
 N_CLIENTS=10
 N_PART=10
 N_EVAL=10
-N_ROUNDS="${N_ROUNDS:-100}"
-EPOCHS="${EPOCHS:-5}"
-LR="${LR:-0.01}"
+N_ROUNDS="${N_ROUNDS_OVERRIDE:-100}"
+EPOCHS="${EPOCHS_OVERRIDE:-5}"
+LR="${LR_OVERRIDE:-0.01}"
 AGG="fedavg"
-PF="${PF:-0.5}"
-PL="${PL:-0.1}"
+PF="${PF_OVERRIDE:-0.5}"
+PL="${PL_OVERRIDE:-0.1}"
 
 # Seeds e alphas (§3: seeds {1,2,3}, alpha {0.1, 1.0}).
 if [ -n "${SEEDS_OVERRIDE:-}" ]; then
