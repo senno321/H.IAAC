@@ -58,5 +58,11 @@
     "total_training_ms": 6060170.965527083,
     "max_training_round_ms": 1851108.8431875,
     "num_selected_clients": 10
+  },
+  "12": {
+    "total_mJ": 65037473.38159463,
+    "total_training_ms": 6060170.965527083,
+    "max_training_round_ms": 1851108.8431875,
+    "num_selected_clients": 10
   }
 }
