@@ -124,6 +124,40 @@ class ResBlock(nn.Module):
         return self.act(x + y)
 
 
+class ResNetCifarGN(nn.Module):
+    """ResNet-18 adaptada ao CIFAR (32x32) com GroupNorm em vez de BatchNorm.
+
+    Stem 3x3 sem maxpool (a ShuffleNet/ResNet do torchvision degeneram o mapa
+    espacial em 32x32); GroupNorm por toda a rede (via ConvGNAct/ResBlock), então
+    não sofre o bug da BatchNorm com batch de tamanho 1 em baixa resolução e é
+    estável no pré-treino não-IID (mesma motivação do norm-layer="gn"). O downsample
+    entre estágios é feito por AvgPool2d; a GAP alimenta uma única Linear, cuja
+    ENTRADA (base*8 dims) é o espaço de features lido pelo hook DC do FedCS.
+    """
+
+    def __init__(self, input_shape, num_classes, base: int = 64):
+        super().__init__()
+        c1, c2, c3, c4 = base, base * 2, base * 4, base * 8
+
+        self.stem = ConvGNAct(input_shape[0], c1, k=3, s=1, p=1)
+        self.layer1 = nn.Sequential(ResBlock(c1, c1), ResBlock(c1, c1))
+        self.layer2 = nn.Sequential(ResBlock(c1, c2), ResBlock(c2, c2))
+        self.layer3 = nn.Sequential(ResBlock(c2, c3), ResBlock(c3, c3))
+        self.layer4 = nn.Sequential(ResBlock(c3, c4), ResBlock(c4, c4))
+        self.pool = nn.AvgPool2d(2)
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(c4, num_classes)
+
+    def forward(self, x):
+        x = self.stem(x)            # 32x32
+        x = self.layer1(x)          # 32x32
+        x = self.pool(self.layer2(x))  # 16x16
+        x = self.pool(self.layer3(x))  # 8x8
+        x = self.pool(self.layer4(x))  # 4x4
+        x = self.gap(x).flatten(1)  # [B, base*8]
+        return self.fc(x)
+
+
 class TemporalAttention(nn.Module):
     """Atenção simples sobre a sequência (dim T)."""
 
@@ -245,6 +279,10 @@ class ModelFactory:
 
         if model_name == 'simplecnn':
             model = SimpleCNN(kwargs['input_shape'], int(kwargs['num_classes']))
+        elif model_name == "resnet_cifar":
+            # ResNet-CIFAR-GN nativa 32x32 (GroupNorm; sem BatchNorm). O `norm` abaixo
+            # é no-op aqui (não há BatchNorm2d para converter).
+            model = ResNetCifarGN(kwargs['input_shape'], int(kwargs['num_classes']))
         elif model_name == 'Mobilenet_v2':
             model = mobilenet_v2(weights=None)
             model.classifier[1] = nn.Linear(model.last_channel, int(kwargs['num_classes']))

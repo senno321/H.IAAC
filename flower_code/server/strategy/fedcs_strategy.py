@@ -1,3 +1,4 @@
+import json
 import logging
 import pickle
 import shutil
@@ -78,6 +79,9 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         self.global_class_centers = None
         self.last_weights = None
         self.prune_event_id = 0
+        # Gate 2 (curva de maturidade): probe por evento de poda, keyed por prune_event_id.
+        # Persistido em gate2_probe.json ao lado do model_performance.json.
+        self._gate2_records: Dict[int, dict] = {}
         # Per-client full dataset size (n_i), captured during the selection phase.
         # Used to derive the capacity-based target K_i when budget_mode != "off".
         self.client_dataset_sizes: Dict[int, int] = {}
@@ -318,6 +322,64 @@ class FedCSRandomConstant(FedAvgRandomConstant):
 
         return new_instructions
 
+    def _save_gate2_probe(self, server_round, results) -> None:
+        """Persiste o Gate 2 probe (qualidade do DC) de um evento de poda em JSON.
+
+        Coleta nn_center_acc/sep_ratio por cliente (enviados nas métricas do fit,
+        prefixados com ``gate2_``), resume a média da frota e grava em
+        gate2_probe.json ao lado do model_performance.json. É o dado da CURVA DE
+        MATURIDADE (§5.1 da proposta): antes só existia no log e precisava de grep.
+
+        Args:
+            server_round: Rodada do servidor em que a poda ocorreu.
+            results: Lista de (ClientProxy, FitRes) desta rodada de poda.
+        """
+        if not self.model_performance_path:
+            return
+
+        per_client: Dict[str, dict] = {}
+        event_id = self.prune_event_id + 1
+        for _client_proxy, fit_res in results:
+            m = fit_res.metrics or {}
+            if "gate2_nn_center_acc" not in m:
+                continue
+            cid = m.get("cid")
+            per_client[str(cid)] = {
+                "nn_center_acc": float(m["gate2_nn_center_acc"]),
+                "sep_ratio": float(m["gate2_sep_ratio"]),
+                "n_valid": int(m.get("gate2_n_valid", 0)),
+                "n_classes": int(m.get("gate2_n_classes", 0)),
+            }
+            event_id = int(m.get("gate2_prune_event_id", event_id))
+
+        if not per_client:
+            log.warning("Gate 2 probe: no client probes received at round %d.", server_round)
+            return
+
+        accs = [v["nn_center_acc"] for v in per_client.values()]
+        seps = [v["sep_ratio"] for v in per_client.values()]
+        self._gate2_records[event_id] = {
+            "server_round": server_round,
+            "prune_event_id": event_id,
+            "mean_nn_center_acc": sum(accs) / len(accs),
+            "mean_sep_ratio": sum(seps) / len(seps),
+            "num_clients": len(per_client),
+            "per_client": per_client,
+        }
+
+        gate2_path = os.path.join(os.path.dirname(self.model_performance_path), "gate2_probe.json")
+        try:
+            with open(gate2_path, "w") as json_file:
+                json.dump(self._gate2_records, json_file, indent=2)
+            log.info(
+                "Gate 2 probe saved (event %d, round %d): mean_nn_center_acc=%.3f mean_sep_ratio=%.3f",
+                event_id, server_round,
+                self._gate2_records[event_id]["mean_nn_center_acc"],
+                self._gate2_records[event_id]["mean_sep_ratio"],
+            )
+        except Exception as e:
+            log.error("Gate 2 probe: failed to write %s: %s", gate2_path, e)
+
     def _compute_capacity_targets(self, epochs: int) -> Dict[int, int]:
         """Derive the per-client target sample count K_i from the round budget.
 
@@ -475,6 +537,9 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         
         # Fases normais: Agregação padrão (FedAvg)
         aggregated_parameters, metrics = super().aggregate_fit(server_round, results, failures)
+
+        if phase == "pruning":
+            self._save_gate2_probe(server_round, results)
 
         if phase == "pruning" and results and not failures:
             self.prune_event_id += 1

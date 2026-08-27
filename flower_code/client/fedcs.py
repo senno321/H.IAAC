@@ -34,6 +34,10 @@ class FedCSClient(BaseClient):
         # Todos os índices de poda são mantidos SEMPRE no espaço deste dataset original.
         self.original_dataset = self.dataloader.dataset
 
+        # Gate 2 probe do último evento de poda (nn_center_acc/sep_ratio). Preenchido
+        # em _prune_dataset e devolvido pelo fit() para o servidor persistir em JSON.
+        self._last_probe = None
+
         # Tenta carregar o estado podado AUTOMATICAMENTE ao inicializar
         # Se este cliente já foi podado em rodadas anteriores, recuperamos o estado aqui
         self._try_load_pruned_state()
@@ -183,6 +187,9 @@ class FedCSClient(BaseClient):
             floor_frac = float(config.get("prune_floor_frac", 0.0))
 
             global_centers = pickle.loads(config["global_centers"])
+            # Reseta o probe para não reaproveitar o de um evento anterior caso este
+            # não consiga computá-lo (ex.: features vazias).
+            self._last_probe = None
             self._prune_dataset(
                 global_centers, prune_event_id=prune_event_id,
                 beta=beta, pf=pf, pl=pl, random_prune=random_prune,
@@ -190,7 +197,12 @@ class FedCSClient(BaseClient):
                 floor_abs=floor_abs, floor_frac=floor_frac,
             )
 
-            return super().fit(parameters, config)
+            weights, num_examples, metrics = super().fit(parameters, config)
+            # Anexa o Gate 2 probe às métricas do fit para o servidor persistir em JSON.
+            if self._last_probe is not None:
+                for k, v in self._last_probe.items():
+                    metrics[f"gate2_{k}"] = v
+            return weights, num_examples, metrics
 
         # --- FASE 4: Fine-Tuning ---
         elif phase == "fine_tuning":
@@ -414,6 +426,17 @@ class FedCSClient(BaseClient):
                 f" >>> [FedCS][probe] client {self.cid}: nn_center_acc={nn_center_acc:.3f} "
                 f"sep_ratio={sep_ratio:.3f} (n_valid={len(valid_idx)}, n_classes={n_classes})"
             )
+            # Persist Gate 2 (curva de maturidade): guarda o probe deste evento de poda
+            # para o fit() devolver ao servidor via métricas e o servidor gravar em JSON
+            # (antes só ia para o log e precisava de grep). Ver _save_gate2_probe no
+            # server/strategy/fedcs_strategy.py.
+            self._last_probe = {
+                "nn_center_acc": nn_center_acc,
+                "sep_ratio": sep_ratio,
+                "n_valid": int(len(valid_idx)),
+                "n_classes": int(n_classes),
+                "prune_event_id": int(prune_event_id),
+            }
 
         # --- Capacity-budget pruning (FedCore-style): keep exactly target_keep samples ---
         # The budget (server-side) decides HOW MANY; the DC score decides WHICH ones.
