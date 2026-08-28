@@ -123,11 +123,11 @@ N_EVAL=10
 N_ROUNDS="${N_ROUNDS_OVERRIDE:-100}"
 EPOCHS="${EPOCHS_OVERRIDE:-5}"
 LR="${LR_OVERRIDE:-0.01}"
-# batch-size: o _common.sh usa 8 (herança do setup ShuffleNet@224, onde a memória
-# forçava batch pequeno). Em CIFAR 32x32 isso é minúsculo e ineficiente — muitas
-# iterações por rodada, subutiliza a GPU (batch 8 deixou ~18 GB ociosos na RTX 6000).
-# Default 128 (padrão CIFAR); cabe folgado e derruba o tempo/rodada ~10x.
-BATCH_SIZE="${BATCH_OVERRIDE:-128}"
+# batch-size: o _common.sh usa 8 (herança do setup ShuffleNet@224). Em CIFAR 32x32 é
+# minúsculo/ineficiente; mas batch 128 com 10 clientes concorrentes e resnet_cifar base=64
+# estoura os 24 GB (OOM). 64 é o meio-termo: ~1,4 GB/cliente × 10 ≈ 14 GB (cabe), e ainda
+# ~8x menos iterações que o batch 8. Com base=32 dá pra subir (BATCH_OVERRIDE=128).
+BATCH_SIZE="${BATCH_OVERRIDE:-64}"
 AGG="fedavg"
 PF="${PF_OVERRIDE:-0.5}"
 PL="${PL_OVERRIDE:-0.1}"

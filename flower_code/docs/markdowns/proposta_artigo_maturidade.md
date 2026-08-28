@@ -99,7 +99,7 @@ Total núcleo (Fases 0–2): **~4 dias**. Com extensão e buffer: **~6 dias** �
 
 ## 9. Execução (operacional): comandos e pegadinhas
 
-Runner: `run_exp/maturidade/run_bateria.sh`. Modelo do paper: **`resnet_cifar`** (via `MODEL_OVERRIDE=resnet_cifar`). **batch-size=128** (default do runner; o `_common.sh` usava 8, herança do ShuffleNet@224 — minúsculo p/ CIFAR 32×32 e ~10× mais lento. Override: `BATCH_OVERRIDE`).
+Runner: `run_exp/maturidade/run_bateria.sh`. Modelo do paper: **`resnet_cifar`** (via `MODEL_OVERRIDE=resnet_cifar`). **batch-size=64** (default do runner; o `_common.sh` usava 8, herança do ShuffleNet@224. Batch 128 com 10 clientes × base=64 dá OOM nos 24 GB; 64 cabe (~14 GB) e é ~8× menos iterações que 8. Override: `BATCH_OVERRIDE`; com base=32 dá pra usar 128).
 
 **Pré-requisitos (máquina compartilhada, ex.: thedeep):**
 - `/` costuma estar 100% cheio; o Ray grava em `/tmp/ray`. **Sempre** exportar `RAY_TMPDIR` para um disco com espaço e caminho CURTO (ex.: `/local2/lucas_s/ray_tmp`) no MESMO shell, antes do script.
@@ -164,7 +164,7 @@ Cada GPU roda 8 runs/célula (B0, B1, B2 t∈{5,10,20,40}, M1, E1) × 3 seeds = 
 rm -rf "outputs/maturidade/fedavg_fedcs_dynamic_constant_10_pretrain2_pf0.5_pl0.1_prune10_50_dataset_cifar10_dir_0.1_seed_1"
 ```
 
-**Checklist no topo de cada log:** `>> RAY_TMPDIR=…`, `Model: resnet_cifar (3,32,32)`, `rounds=100`, `batch=128`; e no `nvidia-smi` (por GPU) ~10 `ClientAppActor`.
+**Checklist no topo de cada log:** `>> RAY_TMPDIR=…`, `Model: resnet_cifar (3,32,32)`, `rounds=100`, `batch=64`; e no `nvidia-smi` (por GPU) ~10 `ClientAppActor`.
 
 ### Pegadinhas já resolvidas (não repetir)
 
