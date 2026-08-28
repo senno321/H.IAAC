@@ -103,7 +103,9 @@ Runner: `run_exp/maturidade/run_bateria.sh`. Modelo do paper: **`resnet_cifar`**
 
 **Pré-requisitos (máquina compartilhada, ex.: thedeep):**
 - `/` costuma estar 100% cheio; o Ray grava em `/tmp/ray`. **Sempre** exportar `RAY_TMPDIR` para um disco com espaço e caminho CURTO (ex.: `/local2/lucas_s/ray_tmp`) no MESMO shell, antes do script.
+- Exportar `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (reduz fragmentação de memória; margem contra OOM).
 - Confirmar 2 GPUs: `nvidia-smi -L`.
+- Memória (batch 64, base=64, 10 clientes): ~16 GB / 24 GB por GPU — cabe com folga.
 
 ### Passo 0 — smoke do `resnet_cifar` (cravar tempo/rodada antes de comprometer a noite)
 
@@ -142,6 +144,7 @@ RUN_B0=false RUN_B1=false RUN_MATURITY=false RUN_M1=false RUN_E1=false \
 # GPU 0 → α = 0.1
 export CUDA_VISIBLE_DEVICES=0
 export RAY_TMPDIR=/local2/lucas_s/ray_tmp_a
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 mkdir -p "$RAY_TMPDIR"
 MODEL_OVERRIDE=resnet_cifar \
 ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1 --skip-setup
@@ -151,6 +154,7 @@ MODEL_OVERRIDE=resnet_cifar \
 # GPU 1 → α = 1.0
 export CUDA_VISIBLE_DEVICES=1
 export RAY_TMPDIR=/local2/lucas_s/ray_tmp_b
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 mkdir -p "$RAY_TMPDIR"
 MODEL_OVERRIDE=resnet_cifar \
 ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 1.0 --skip-setup
