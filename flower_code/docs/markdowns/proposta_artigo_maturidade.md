@@ -27,12 +27,12 @@ Documento de plano (não é spec de código). Define objetivo do artigo, o que r
 |---|---|---|
 | Dataset | CIFAR-10 | fiel ao FedCS; foco em profundidade |
 | Resolução | **32×32 nativo** | mata o upscaling na CPU (gargalo dos ~15 min/rodada); baixa-res é o regime do paper original |
-| Modelo | rede nativa 32×32 — **recomendado ResNet-18 adaptado p/ CIFAR** (stem 3×3, sem maxpool); *fallback* SimpleCNN já existente | ShuffleNet degenera em 32×32 (mapa 1×1). Decidir no Fase 0 |
+| Modelo | **ResNet-CIFAR-GN** (`resnet_cifar`: ResNet-18 adaptado — stem 3×3, sem maxpool, GroupNorm) — **decidido** como modelo do paper. SimpleCNN validou o pipeline e fica como *fallback* barato | ShuffleNet / ResNet-18 torchvision degeneram em 32×32 (stem 7×7 + maxpool → mapa 1×1) e usam BatchNorm (instável em não-IID). GN é padrão em FL não-IID; features discriminativas sustentam o DC/Gate 2 — SimpleCNN tem teto baixo e features fracas (Gate2≈0,31), abafaria a tese |
 | Não-IID | Dirichlet α ∈ {0.1, 1.0} | severo e moderado |
 | Clientes | 10, participação total | igual ao setup atual |
 | Rodadas | 100 (fallback 60) | |
 | Seeds | **{1, 2, 3}** | estatística (o setup antigo tinha 1 seed — fraqueza) |
-| Paralelismo | consertar federação p/ **10 clientes concorrentes** em 1 GPU | hoje roda serial (~10× mais lento) |
+| Paralelismo | **resolvido**: `max_workers` do servidor passou a usar `num-participants` (era `0.1×num-clients`=1 com 10 clientes → serial) | 10 clientes concorrentes em 1 GPU via `client-resources.num-gpus=0.1`; confirmado ~10 actors no `nvidia-smi` |
 | GPUs | 2 (paraleliza por α/seed) | dobra throughput; impacto real no nº de runs |
 
 ## 4. Métodos comparados (a "espinha")
@@ -72,7 +72,7 @@ Premissa: regime rápido ≈ **3 h/run** (100 rodadas, 32×32, paralelo); 2 GPUs
 
 | Fase | Conteúdo | Runs | Tempo (2 GPU) |
 |---|---|---|---|
-| 0 | Setup: 32×32 + modelo + paralelismo + validar M1; 1 run-teste | — | ~0,5–1 dia |
+| 0 | Setup: 32×32 + modelo (`resnet_cifar`) + paralelismo (resolvido) + Gate 2 em JSON + validar M1 — **feito** com SimpleCNN; falta cravar o tempo/rodada do `resnet_cifar` | — | ~0,5–1 dia |
 | 1 | Curva de maturidade (§5.1) + comparação principal (§5.2) | ~30 | ~1,5 dia |
 | 2 | M2 + ablations (§5.3) | ~18 | ~1 dia |
 | 3 | Eficiência E1 (§5.4, opcional) | ~8 | ~0,5 dia |
@@ -96,3 +96,82 @@ Total núcleo (Fases 0–2): **~4 dias**. Com extensão e buffer: **~6 dias** �
 - **Tab. 1** — acurácia final (média ± dp, 3 seeds) × α × método.
 - **Tab. 2** — ablations (gatilho, currículo).
 - **Tab. 3 (opcional)** — eficiência (acurácia vs energia) com E1.
+
+## 9. Execução (operacional): comandos e pegadinhas
+
+Runner: `run_exp/maturidade/run_bateria.sh`. Modelo do paper: **`resnet_cifar`** (via `MODEL_OVERRIDE=resnet_cifar`). **batch-size=128** (default do runner; o `_common.sh` usava 8, herança do ShuffleNet@224 — minúsculo p/ CIFAR 32×32 e ~10× mais lento. Override: `BATCH_OVERRIDE`).
+
+**Pré-requisitos (máquina compartilhada, ex.: thedeep):**
+- `/` costuma estar 100% cheio; o Ray grava em `/tmp/ray`. **Sempre** exportar `RAY_TMPDIR` para um disco com espaço e caminho CURTO (ex.: `/local2/lucas_s/ray_tmp`) no MESMO shell, antes do script.
+- Confirmar 2 GPUs: `nvidia-smi -L`.
+
+### Passo 0 — smoke do `resnet_cifar` (cravar tempo/rodada antes de comprometer a noite)
+
+```bash
+export RAY_TMPDIR=/local2/lucas_s/ray_tmp
+mkdir -p "$RAY_TMPDIR"
+export CUDA_VISIBLE_DEVICES=0
+
+MODEL_OVERRIDE=resnet_cifar N_ROUNDS_OVERRIDE=10 SEEDS_OVERRIDE=1 M1_PRUNE_ROUNDS=5 \
+RUN_B0=false RUN_B1=false RUN_MATURITY=false RUN_E1=false \
+./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1
+```
+
+Se o tempo/rodada for alto demais para a matriz caber, cortar (fallback §7): `N_ROUNDS_OVERRIDE=60` e/ou `SEEDS_OVERRIDE="1 2"`, ou reduzir a capacidade do modelo (`ResNetCifarGN(base=32)`, ~4× mais barato — hoje o factory usa `base=64`).
+
+### Bateria da noite em 2 GPUs — **race-free** (setup 1×, depois `--skip-setup`)
+
+Rodar duas baterias do MESMO checkout ao mesmo tempo tem corrida no **setup** (o `_common.sh` faz `sed` no `pyproject.toml` e escreve em `model/` e `profiles/` compartilhados). Solução: gerar modelos+profiles UMA vez, depois disparar as duas GPUs com `--skip-setup` (setup é independente de α; os `outputs/` não colidem porque α entra no nome da pasta).
+
+**Passo 1 — setup único (gera `model/`+`profiles/` p/ seeds {1,2,3}; não roda treino; espera terminar):**
+
+```bash
+export RAY_TMPDIR=/local2/lucas_s/ray_tmp
+mkdir -p "$RAY_TMPDIR"
+
+MODEL_OVERRIDE=resnet_cifar \
+RUN_B0=false RUN_B1=false RUN_MATURITY=false RUN_M1=false RUN_E1=false \
+./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1
+```
+
+(É esperado "Jobs totais: 0" — este passo só gera os `.pth` e `profiles.json`.)
+
+**Passo 2 — as duas GPUs em paralelo (cada uma num tmux/terminal), com `--skip-setup`:**
+
+```bash
+# GPU 0 → α = 0.1
+export CUDA_VISIBLE_DEVICES=0
+export RAY_TMPDIR=/local2/lucas_s/ray_tmp_a
+mkdir -p "$RAY_TMPDIR"
+MODEL_OVERRIDE=resnet_cifar \
+./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1 --skip-setup
+```
+
+```bash
+# GPU 1 → α = 1.0
+export CUDA_VISIBLE_DEVICES=1
+export RAY_TMPDIR=/local2/lucas_s/ray_tmp_b
+mkdir -p "$RAY_TMPDIR"
+MODEL_OVERRIDE=resnet_cifar \
+./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 1.0 --skip-setup
+```
+
+Cada GPU roda 8 runs/célula (B0, B1, B2 t∈{5,10,20,40}, M1, E1) × 3 seeds = 24 runs. `RAY_TMPDIR` separado (`_a`/`_b`) e `CUDA_VISIBLE_DEVICES` distinto isolam as duas. As pastas de saída são todas únicas (o nome inclui método, pretrain, tags, α e seed) — nenhuma run se sobrescreve.
+
+**Antes de rodar, limpar a pasta stale do smoke anterior** (senão o M1 real reaproveita/mistura):
+
+```bash
+rm -rf "outputs/maturidade/fedavg_fedcs_dynamic_constant_10_pretrain2_pf0.5_pl0.1_prune10_50_dataset_cifar10_dir_0.1_seed_1"
+```
+
+**Checklist no topo de cada log:** `>> RAY_TMPDIR=…`, `Model: resnet_cifar (3,32,32)`, `rounds=100`, `batch=128`; e no `nvidia-smi` (por GPU) ~10 `ClientAppActor`.
+
+### Pegadinhas já resolvidas (não repetir)
+
+| Sintoma | Causa | Correção | Onde |
+|---|---|---|---|
+| Só 1–2 actors; rodada serial (~10× lenta) | `set_max_workers(int(0.1*num-clients))` = 1 com 10 clientes | `max(num-participants, num-evaluators)` | `utils/simulation/workflow.py` (`get_server_app_components`) |
+| `(raylet) /tmp/ray over 95% full`; trava | Ray grava em `/tmp/ray`; `/` cheio | `export RAY_TMPDIR=<disco>/ray_tmp` (guarda falha rápido) | `run_bateria.sh` |
+| `Model: Shufflenet …` e `rounds=100` mesmo com override | `_common.sh` define MODEL/N_ROUNDS incondicionalmente | usar sufixo `_OVERRIDE` | `run_bateria.sh` |
+| `FileNotFoundError: utils/profile/<model>.json` | `devices-profile-path = ./utils/profile/${MODEL}.json` sem profile do modelo | criar o JSON de profile (tempo/energia por dispositivo; só simulado, não afeta acurácia) | `utils/profile/{simplecnn,resnet_cifar}.json` |
+| `-bash: … No such file or directory` no `export` | colou o placeholder literal `<disco…>` | usar o caminho real | — |

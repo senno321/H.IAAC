@@ -41,8 +41,8 @@
 #     ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1
 #
 # Knobs por env (sufixo _OVERRIDE porque o _common.sh já define os nomes-base):
-#   MODEL_OVERRIDE, N_ROUNDS_OVERRIDE, EPOCHS_OVERRIDE, LR_OVERRIDE, PF_OVERRIDE,
-#   PL_OVERRIDE, SEEDS_OVERRIDE, ALPHAS_OVERRIDE, MATURITY_T_OVERRIDE.
+#   MODEL_OVERRIDE, N_ROUNDS_OVERRIDE, EPOCHS_OVERRIDE, LR_OVERRIDE, BATCH_OVERRIDE,
+#   PF_OVERRIDE, PL_OVERRIDE, SEEDS_OVERRIDE, ALPHAS_OVERRIDE, MATURITY_T_OVERRIDE.
 #
 # ── Disco / Ray (/tmp cheio em máquina compartilhada) ──
 #   O Ray grava a sessão/spill em /tmp/ray por padrão. Se o /tmp estiver cheio (comum
@@ -123,6 +123,11 @@ N_EVAL=10
 N_ROUNDS="${N_ROUNDS_OVERRIDE:-100}"
 EPOCHS="${EPOCHS_OVERRIDE:-5}"
 LR="${LR_OVERRIDE:-0.01}"
+# batch-size: o _common.sh usa 8 (herança do setup ShuffleNet@224, onde a memória
+# forçava batch pequeno). Em CIFAR 32x32 isso é minúsculo e ineficiente — muitas
+# iterações por rodada, subutiliza a GPU (batch 8 deixou ~18 GB ociosos na RTX 6000).
+# Default 128 (padrão CIFAR); cabe folgado e derruba o tempo/rodada ~10x.
+BATCH_SIZE="${BATCH_OVERRIDE:-128}"
 AGG="fedavg"
 PF="${PF_OVERRIDE:-0.5}"
 PL="${PL_OVERRIDE:-0.1}"
@@ -205,7 +210,7 @@ maybe_run() {
 echo "============================================================"
 echo "  Bateria MATURIDADE — CIFAR-10 32x32 nativo, 10 clientes"
 echo "  Federation: $FED | shard $SHARD/$NSHARDS"
-echo "  Model: $MODEL $INPUT_SHAPE | rounds=$N_ROUNDS epochs=$EPOCHS lr=$LR (cosine)"
+echo "  Model: $MODEL $INPUT_SHAPE | rounds=$N_ROUNDS epochs=$EPOCHS batch=$BATCH_SIZE lr=$LR (cosine)"
 echo "  Seeds: ${SEEDS[*]} | Alphas: ${ALPHAS[*]} | pf=$PF pl=$PL"
 echo "  Maturity t: ${MATURITY_T[*]} | M1 prune-rounds: $M1_PRUNE_ROUNDS (pretrain=$M1_PRETRAIN)"
 echo "  Blocos: B0=$RUN_B0 B1=$RUN_B1 MATURITY=$RUN_MATURITY M1=$RUN_M1 E1=$RUN_E1"
