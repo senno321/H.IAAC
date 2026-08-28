@@ -170,6 +170,37 @@ rm -rf "outputs/maturidade/fedavg_fedcs_dynamic_constant_10_pretrain2_pf0.5_pl0.
 
 **Checklist no topo de cada log:** `>> RAY_TMPDIR=…`, `Model: resnet_cifar (3,32,32)`, `rounds=100`, `batch=64`; e no `nvidia-smi` (por GPU) ~10 `ClientAppActor`.
 
+### GPUs em HOSTS separados (ex.: `thedeep` + `thedeep2`) — máquina zerada
+
+Quando as duas GPUs são **hosts SSH distintos** (filesystems independentes), **não há corrida de setup**: ignore o Passo 1/2 acima. Cada host faz o **próprio setup** e roda **um α inteiro**; o git é o mecanismo de sync. Não precisa `--skip-setup` nem `CUDA_VISIBLE_DEVICES` (1 GPU por host).
+
+**Montar o ambiente do zero (host novo, sem `.venv`):**
+- Achar um disco local com espaço (o `/` costuma ter pouco; ex.: na `thedeep2` é `/local1/lucas_senno`, 96 GB). Clonar o repo lá e usá-lo para `RAY_TMPDIR`. O `/home` de rede (NFS) não é gravável → use `MPLCONFIGDIR`/`TMPDIR` no disco local.
+- Fixar as **mesmas versões** da máquina que já roda (reprodutibilidade): `flwr[simulation]==1.20.0`, `flwr-datasets[vision]==0.5.0`. O `scipy` é dependência do runtime (`client/fedcs.py`) mas **não** está no `pyproject` — instalar à mão.
+
+```bash
+cd /local1/<user>/H.IAAC/flower_code
+export TMPDIR=/local1/<user>/tmp PIP_CACHE_DIR=/local1/<user>/pip_cache
+mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
+python3 -m venv .venv && source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install "flwr[simulation]==1.20.0" "flwr-datasets[vision]==0.5.0" scipy
+python -c "import flwr, scipy; print(flwr.__version__, scipy.__version__)"  # 1.20.0 …
+```
+
+**Rodar (um α por host), em `tmux`:**
+
+```bash
+export RAY_TMPDIR=/local1/<user>/ray_tmp
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export MPLCONFIGDIR=/local1/<user>/mpl
+mkdir -p "$RAY_TMPDIR" "$MPLCONFIGDIR"
+MODEL_OVERRIDE=resnet_cifar \
+./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 1.0   # host A: 0.1; host B: 1.0
+```
+
+**Confirmar que treina (não é submit async):** o B0 deve **bloquear** e imprimir `All 10 client(s) connected` → `[ROUND 1]`, `[ROUND 2]…`; `nvidia-smi` mostra ~10 `ray::ClientAppActor`. Se varrer os 24 jobs em segundos, está em modo SuperLink (ver tabela).
+
 ### Pegadinhas já resolvidas (não repetir)
 
 | Sintoma | Causa | Correção | Onde |
@@ -179,3 +210,6 @@ rm -rf "outputs/maturidade/fedavg_fedcs_dynamic_constant_10_pretrain2_pf0.5_pl0.
 | `Model: Shufflenet …` e `rounds=100` mesmo com override | `_common.sh` define MODEL/N_ROUNDS incondicionalmente | usar sufixo `_OVERRIDE` | `run_bateria.sh` |
 | `FileNotFoundError: utils/profile/<model>.json` | `devices-profile-path = ./utils/profile/${MODEL}.json` sem profile do modelo | criar o JSON de profile (tempo/energia por dispositivo; só simulado, não afeta acurácia) | `utils/profile/{simplecnn,resnet_cifar}.json` |
 | `-bash: … No such file or directory` no `export` | colou o placeholder literal `<disco…>` | usar o caminho real | — |
+| Bateria "termina" em segundos; 24 jobs só imprimem `Success`/`'federations'`; nada treina | flwr novo (instalado num venv do zero) migra p/ modo **SuperLink/deployment**: `flwr run` **submete** e retorna (assíncrono), deixa `superlink`/`superexec` zumbis | fixar `flwr==1.20.0` (reinstalar limpo: `pip uninstall -y flwr`), matar zumbis (`pkill -f flower-superlink; pkill -f flower-superexec`), apagar `rm -rf .runhome/.flwr` | host novo (`thedeep2`) |
+| `LoadClientAppError` / `ModuleNotFoundError: No module named 'scipy'` | `scipy` é usado em `client/fedcs.py` (`cdist`) mas não está no `pyproject` | `pip install scipy` no venv | host novo |
+| `[project].name "perf_eval_cs_fl" is invalid` | flwr novo rejeita `_` no nome do app | usar flwr 1.20.0 (aceita `_`); ou nome com hífens | flwr ≥ nova vs 1.20.0 |
