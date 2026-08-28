@@ -359,7 +359,13 @@ def get_server_app_components(context, strategy):
 
     config = ServerConfig(num_rounds=num_rounds)
     server = Server(strategy=strategy, client_manager=SimpleClientManager())
-    server.set_max_workers(max(1, int(0.1 * int(context.run_config["num-clients"]))))
+    # max_workers dimensiona o ThreadPoolExecutor que despacha fit/evaluate aos clientes.
+    # Deve ser o nº de clientes que trabalham por rodada (participants/evaluators), não
+    # 0.1*num-clients: com participação total (num-clients=10) aquele proxy virava 1 e
+    # serializava a rodada inteira. O Ray ainda limita a concorrência real via client-resources.
+    num_participants = int(context.run_config["num-participants"])
+    num_evaluators = int(context.run_config["num-evaluators"])
+    server.set_max_workers(max(1, num_participants, num_evaluators))
     components = ServerAppComponents(strategy=strategy, config=config, server=server)
     return components
 
