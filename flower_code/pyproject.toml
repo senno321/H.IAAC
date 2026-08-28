@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "perf_eval_cs_fl"
+name = "perf-eval-cs-fl"
 version = "1.0.0"
 description = ""
 license = "Apache-2.0"
