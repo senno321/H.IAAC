@@ -1,0 +1,20 @@
+{
+  "2": {
+    "total_mJ": 1087408735.5247,
+    "total_training_ms": 87858213.55125499,
+    "max_training_round_ms": 30820245.491879996,
+    "num_selected_clients": 10
+  },
+  "3": {
+    "total_mJ": 1087408735.5247,
+    "total_training_ms": 87858213.55125499,
+    "max_training_round_ms": 30820245.491879996,
+    "num_selected_clients": 10
+  },
+  "4": {
+    "total_mJ": 1087408735.5247,
+    "total_training_ms": 87858213.55125499,
+    "max_training_round_ms": 30820245.491879996,
+    "num_selected_clients": 10
+  }
+}
