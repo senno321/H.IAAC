@@ -47,6 +47,9 @@ N_EVAL=10
 # Normalização do backbone gerada no .pth inicial: bn (padrão) | gn.
 # Scripts que não setam NORM mantêm o comportamento antigo (BatchNorm).
 NORM="${NORM:-bn}"
+# Pasta dos .pth iniciais. Vazio = root-model-dir do pyproject (./model/). Datasets com
+# outro num-classes precisam de pasta própria: o nome do .pth não inclui o dataset.
+ROOT_MODEL_DIR="${ROOT_MODEL_DIR:-}"
 
 parse_args() {
   for arg in "$@"; do
@@ -85,7 +88,8 @@ setup_model_and_profiles() {
       --agg "$agg_name" \
       --input-shape "$INPUT_SHAPE" \
       --num-classes "$NUM_CLASSES" \
-      --norm "$NORM"
+      --norm "$NORM" \
+      ${ROOT_MODEL_DIR:+--root-model-dir "$ROOT_MODEL_DIR"}
 
     PYTHONPATH=. python gen_profile/gen_sim_profile.py \
       --config_file ./pyproject.toml --seed "$SEED"

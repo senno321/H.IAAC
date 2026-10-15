@@ -17,3 +17,17 @@ __pycache__/
 *.log
 *.tmp
 .DS_Store
+
+# LaTeX build artifacts
+*.aux
+*.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+article/article.pdf
+
+# Prévia de PDF gerada localmente
+.preview/

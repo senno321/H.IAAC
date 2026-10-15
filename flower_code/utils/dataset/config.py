@@ -26,17 +26,41 @@ class DatasetConfig:
             ])
         ),
 
+        "uoft-cs/cifar100": (
+            Compose([
+                RandomHorizontalFlip(),
+                ToTensor(),
+                Normalize(mean=[0.5071, 0.4865, 0.4409],
+                          std=[0.2673, 0.2564, 0.2762])
+            ]),
+            Compose([
+                ToTensor(),
+                Normalize(mean=[0.5071, 0.4865, 0.4409],
+                          std=[0.2673, 0.2564, 0.2762])
+            ])
+        ),
+
         # Add other datasets here...
+    }
+
+    # Média/desvio por canal dos datasets CIFAR (usados em get_transform).
+    CIFAR_NORMALIZATION = {
+        "uoft-cs/cifar10": ([0.4914, 0.4822, 0.4465], [0.2470, 0.2435, 0.2616]),
+        "uoft-cs/cifar100": ([0.5071, 0.4865, 0.4409], [0.2673, 0.2564, 0.2762]),
     }
 
     BATCH_KEY = {
         "uoft-cs/cifar10": "img",
+        "uoft-cs/cifar100": "img",
         "flwrlabs/shakespeare": "x",
         "speech_commands": "data"
     }
 
+    # CIFAR-100 no HF tem 'fine_label' (100 classes) e 'coarse_label' (20 superclasses);
+    # o experimento usa as 100 classes finas.
     BATCH_VALUE = {
         "uoft-cs/cifar10": "label",
+        "uoft-cs/cifar100": "fine_label",
         "flwrlabs/shakespeare": "y",
         "speech_commands": "targets"
     }
@@ -64,9 +88,8 @@ class DatasetConfig:
         if dataset_id not in DatasetConfig.TRANSFORMS:
             raise ValueError(f"Unknown dataset_id: {dataset_id}")
 
-        if dataset_id == "uoft-cs/cifar10":
-            mean = [0.4914, 0.4822, 0.4465]
-            std = [0.2470, 0.2435, 0.2616]
+        if dataset_id in DatasetConfig.CIFAR_NORMALIZATION:
+            mean, std = DatasetConfig.CIFAR_NORMALIZATION[dataset_id]
             steps = []
 
             hw = DatasetConfig._parse_hw_from_input_shape(input_shape)

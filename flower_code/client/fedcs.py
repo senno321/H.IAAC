@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, Subset
 from scipy.spatial.distance import cdist 
 
 from client.base import BaseClient 
+from utils.dataset.config import DatasetConfig
 from utils.model.manipulation import set_weights 
 
 log = logging.getLogger(__name__)
@@ -256,16 +257,16 @@ class FedCSClient(BaseClient):
             log.warning("FedCS: Could not find Linear layer for hook.")
             return np.array([]), np.array([])
 
+        # Colunas de imagem/rótulo vêm do DatasetConfig (o CIFAR-100 usa 'fine_label'
+        # e também tem 'coarse_label', então adivinhar pela posição pega a coluna errada).
+        input_key = DatasetConfig.BATCH_KEY[self.dataset_id]
+        label_key = DatasetConfig.BATCH_VALUE[self.dataset_id]
+
         with torch.no_grad():
             for batch in extraction_loader:
                 if isinstance(batch, dict):
-                    if "img" in batch: inputs = batch["img"]
-                    elif "image" in batch: inputs = batch["image"]
-                    else: inputs = list(batch.values())[0]
-
-                    if "label" in batch: labels = batch["label"]
-                    elif "labels" in batch: labels = batch["labels"]
-                    else: labels = list(batch.values())[1]
+                    inputs = batch[input_key]
+                    labels = batch[label_key]
                 else:
                     inputs, labels = batch[0], batch[1]
 

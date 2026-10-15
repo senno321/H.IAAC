@@ -1,0 +1,606 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\graphicspath{{./}{../docs/figs/}}
+
+% Tighter spacing around floats and captions, to fit the page limit. Body text
+% leading, font sizes and the skips around displayed equations are left at the
+% IEEEtran defaults.
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\dblfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\dbltextfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{0pt}
+
+\begin{document}
+
+\title{When to Prune: Feature Maturity Limits Coreset\\Selection in Energy-Efficient Federated Learning}
+
+% Double-blind review copy for DML-ICC 2026 (IEEE/ACM UCC 2026): the author block
+% is intentionally empty. Restore the camera-ready block below after acceptance.
+\author{}
+% \author{\IEEEauthorblockN{Lucas C. Senno}
+% \IEEEauthorblockA{\textit{Universidade Estadual de Campinas}\\
+% Campinas, Brazil \\
+% <email>}
+% }
+
+\maketitle
+
+\begin{abstract}
+In federated learning, local training is a major contributor to the energy cost, so
+pruning the local dataset of every client is a direct way to reduce training energy.
+The federated coreset method we study ranks samples by their distance to globally
+aggregated class centroids, but under non-IID data those distances are computed
+over features that are still immature. Pruning early with them is then worse than
+pruning at random rather than merely suboptimal: on CIFAR-10 with Dirichlet 0.1,
+pruning at round 5 costs 6.98 percentage points against a random baseline at the
+same budget, and the inversion reappears at Dirichlet 1.0. We show that this failure
+is diagnosable by a cheap client-side probe of feature separation, which falls below
+1 exactly in the regime where the criterion is harmful, and that it is largely
+reversible by recomputing the coreset once at the same training-data budget, which
+recovers 4.93 of those points. The repaired configuration composes with a per-client
+adaptive pruning rate that concentrates the removal on the clients whose samples are
+the most expensive to train on. The result stays within 0.82 points of full training
+while using 61.2 percent of its energy, and dominates both random and prune-once
+coreset pruning over the band of the accuracy-energy Pareto front that it spans.
+\end{abstract}
+
+\begin{IEEEkeywords}
+federated learning, coreset selection, data pruning, energy efficiency, non-IID data
+\end{IEEEkeywords}
+
+\section{Introduction}
+Federated learning (FL) keeps data on the device and moves models instead
+\cite{fedavg}. In the computing continuum this is the typical pattern, with learning
+tasks running at the edge, close to where data is produced, rather than shipping
+every sample to a central cloud. The energy spent by those participating devices
+is then a primary concern \cite{greenfl}. The energy cost is dominated by local training over the
+full local dataset, repeated for every round, so reducing the amount of data
+each client trains on is the largest single source of energy savings available.
+Device heterogeneity introduces two distinct costs. Per-sample energy varies across
+devices and sets the total training energy, while per-sample time determines the
+critical path of a synchronous round, so \emph{how much} to remove and
+\emph{from whom} is a decision about both.
+
+Coreset selection provides exactly that reduction \cite{coreset}. In the federated
+variant we build on \cite{fedcs}, each client scores its samples by a
+distance-to-centroid (DC) criterion against the globally aggregated class
+centroids and discards the least informative ones, keeping the decision boundary intact
+while training on a fraction of the data. The savings are real, since pruning half of
+the large classes in round 5 brings the training energy down to 61\% of full training
+in our setup (our model counts training only; Section~\ref{sec:setup}).
+
+The accuracy, however, collapses. Under label skew, the features that produce the
+centroids are still immature in the early rounds, so the DC ranking is computed over a
+geometry that does not yet separate the classes. Pruning with it is \emph{worse than
+choosing samples uniformly at random} at the same budget, the opposite of the intended
+behaviour and, to the best of our knowledge, not explicitly characterized in prior
+federated coreset evaluations, which apply pruning after the representation has
+converged.
+
+This paper turns that inversion, the criterion losing to random selection, into a design principle. Our contributions are:
+
+\begin{itemize}
+\item \textbf{Diagnosis.} In our experiments, DC pruning is unreliable while features
+are immature: with Dirichlet $\alpha=0.1$, a severely skewed non-IID partition, and
+pruning round $t=5$, DC pruning loses $6.98$~pp to random pruning at an identical
+budget, and the inversion replicates at $\alpha=1.0$
+(Section~\ref{sec:res-maturity}).
+\item \textbf{An observable maturity signal.} A client-side probe of feature
+separation, computed from distances the pruning step already needs, falls below $1$
+only in the configurations where DC loses several points to random, so the harmful
+regime can be recognised from an observed signal instead of by sweeping $t$
+(Section~\ref{sec:signal}).
+\item \textbf{A correction at the same training-data budget.} Selecting the coreset a second
+time over the client's full local dataset, starting at the same round as the
+prune-once baseline and training on a subset of the same size,
+recovers $+4.93$~pp when pruning early, and the gain shrinks monotonically with
+maturity, which is what the maturity hypothesis predicts
+(Section~\ref{sec:res-recompute}).
+\item \textbf{A training-energy operating point.} A per-client pruning rate driven by the
+profiled cost of each device concentrates the removal where training is expensive and
+composes with recomputation of the coreset, at an accuracy cost within the seed
+standard deviation. The combination stays within $0.82$~pp of full training at
+$61.2\%$ of its energy and dominates both baselines over the energy band it spans
+(Section~\ref{sec:res-energy}).
+\end{itemize}
+
+
+\section{Background and Related Work}
+
+\textbf{Federated averaging and label skew.} We build on FedAvg \cite{fedavg}, where
+a server averages locally trained models weighted by the number of local samples.
+Client data is partitioned by a Dirichlet distribution over labels \cite{dirichlet},
+the standard protocol for controlling the severity of the non-IID setting, where a
+small concentration parameter gives each client a few dominant classes. Because batch
+statistics are unreliable under such skew, we follow common practice and replace
+batch normalisation with group normalisation \cite{gn}.
+
+\textbf{Data selection in federated learning.} Reducing the energy of federated
+training is an active concern \cite{greenfl}, and how much data each client trains on
+is one of the available levers, with a growing taxonomy of sampling strategies
+\cite{sampling}. FedBalancer selects the samples each client trains on to improve
+time-to-accuracy under device heterogeneity, updating the selection as training
+proceeds \cite{fedbalancer}, and sample-level selection has been used to buy
+high-quality data under a budget \cite{sampleselect}. Coreset methods instead select a
+subset that preserves the learning signal \cite{coreset}; the federated variant we
+build on scores each sample by the distance between its feature vector and the global
+class centroids, then removes the samples whose score indicates redundancy
+\cite{fedcs}. In this DC-based setting, prior evaluations typically apply pruning
+after an initial training phase long enough for the representation to be usable; the
+behaviour of the criterion \emph{during} that phase, which is where the energy savings
+are largest, is what this paper characterises. That the earliest rounds are decisive
+is established elsewhere: critical learning periods have been used to schedule client
+selection \cite{criticalfl}. We ask the same question of a data-selection criterion,
+namely when it becomes trustworthy, and tie the answer to a probe that a client can
+evaluate locally.
+
+\section{Method}
+
+Pruning here means selecting, at a chosen round, a subset of each client's local data
+and training only on it for the remaining rounds. The DC criterion and the double
+pruning that applies it come from FedCS \cite{fedcs}; the two corrections we evaluate,
+a recomputation schedule and an adaptive per-client rate, are our additions to it. The criterion and
+its random counterpart are the objects of study, and the probe of
+Section~\ref{sec:signal} is a \emph{diagnostic} of when the criterion is trustworthy.
+We do not use the probe to trigger pruning, since the pruning rounds are fixed in
+advance throughout, and closing that loop is future work.
+
+
+
+\subsection{Double pruning by distance to centroid}
+At a pruning round the server aggregates per-class feature centroids and sends them
+to the clients. A client with feature vector $f_i$ and label $y_i$ scores every local
+sample by
+
+\begin{equation}
+\mathrm{DC}(i) = \bigl| \min_{k \neq y_i} \lVert f_i - c_k \rVert - \lVert f_i - c_{y_i} \rVert \bigr| ,
+\label{eq:dc}
+\end{equation}
+where $c_k$ is the centroid of class $k$ and $f_i$ is the input of the final linear
+layer, a $512$-dimensional vector read by a forward hook. A large score marks a sample
+that sits far from any decision boundary and is therefore considered redundant; a
+small score marks a boundary sample that is kept. The score is also
+\emph{sign-agnostic}: a sample that lies deep inside the region of a \emph{wrong}
+class also receives a large score and is discarded as redundant, a plausible
+mechanism for the failure we characterise in Section~\ref{sec:res-maturity}.
+
+Pruning proceeds in two phases, following \cite{fedcs}: the samples of the
+large-capacity classes, those with $n_k > \beta \, n_{\max}$, which hold most of that
+client's data, are pooled and ranked
+across classes, and the fraction $p_f$ with the highest scores is removed; the
+remainder, which contains the small classes together with the surviving
+large-capacity samples, is then ranked across classes and its fraction $p_l$ with the
+highest scores is removed. A per-class floor keeps at least one sample of every
+locally present class, so no class is eliminated outright. We use $p_f = 0.5$ and
+$p_l = 0.1$ throughout, and follow the FedCS protocol for $\beta$, which pairs the
+threshold with the skew of the partition: $\beta = 0.65$ at $\alpha = 0.1$ and
+$\beta = 0.5$ at $\alpha = 1.0$ \cite{fedcs}.
+
+The \emph{random} baseline applies the identical double-pruning structure and removes the
+identical number of samples in each phase, but draws them uniformly at random. Any
+difference between the two is therefore attributable to the DC criterion alone, at the
+same training-data budget and hence the same energy.
+
+\subsection{A probe for feature maturity}\label{sec:signal}
+Equation~\eqref{eq:dc} is only meaningful if the feature space already separates the
+classes. We measure this with two quantities computed by each client from the same
+distance matrix that Equation~\eqref{eq:dc} already requires, so the probe adds no
+distance computation of its own:
+
+\begin{equation}
+\mathrm{sep\_ratio} = \frac{\mathbb{E}_i \bigl[ \min_{k \neq y_i} \lVert f_i - c_k \rVert \bigr]}{\mathbb{E}_i \bigl[ \lVert f_i - c_{y_i} \rVert \bigr]} ,
+\label{eq:sep}
+\end{equation}
+the ratio between the mean distance to the nearest wrong centroid and the mean
+distance to the own centroid, and $\mathrm{nn\_acc}$, the fraction of local samples
+whose own centroid is the nearest one. Each client reports both for its own data and
+the server averages them over the participants. A $\mathrm{sep\_ratio}$ at or below
+$1$ means that a sample sits on average no closer to its own centroid than to a wrong
+one, so the ranking induced by Equation~\eqref{eq:dc} carries little signal;
+separated features give $\mathrm{sep\_ratio} > 1$ and a higher $\mathrm{nn\_acc}$. We
+read $\mathrm{sep\_ratio} < 1$ as a warning sign of poorly separated features. We
+use $\mathrm{sep\_ratio}$ as a diagnostic maturity signal and report $\mathrm{nn\_acc}$
+alongside it as a second, consistent reading of the same geometry. Neither quantity
+is used as a calibrated pruning trigger in this work.
+
+\subsection{Coreset recomputation schedule}
+Instead of pruning once at round $t$ and keeping the subset for the remainder of
+training, we recompute the coreset on the schedule $\{t, t+\Delta\}$, a second selection
+$\Delta$ rounds after the first. The method does not fix $\Delta$; we evaluate a single
+value, given with the other hyperparameters in Section~\ref{sec:setup}. Each selection
+scores the client's \emph{full} local dataset with the features of the current model:
+scores are computed in the original index space, so a sample discarded by the first
+selection can be selected again by the second. The second event therefore re-ranks
+everything rather than re-ranking the survivors.
+
+The comparison against the prune-once baseline is \emph{iso-budget} in training data: both variants
+train on the full dataset until $t$ and on a subset of the same size afterwards, so
+the trajectories coincide up to the first pruning event and the training energy is
+the same. What the recompute configuration gains is access rather than compute, since over the
+run it trains on the union of two coresets instead of one. Each selection needs a
+forward pass over the full local data to extract $f_i$, a cost our energy model does
+not count (Section~\ref{sec:setup}).
+
+\subsection{Adaptive per-client pruning rate}\label{sec:adaptive}
+The per-client rate described here is the second of our two corrections; FedCS shares a
+single pair $(p_f, p_l)$ across the federation \cite{fedcs}. Such a pair assumes that a
+sample costs the same on every device. It does not, since the wall-clock time of a synchronous round is set by the slowest client, and the energy is a sum of per-device costs that vary with the hardware profile and the number of local samples. A uniform pruning rate therefore over-prunes the cheap clients, discarding data that was inexpensive to train on, and under-prunes the expensive ones that dominate the cost of the round.
+
+We keep the DC criterion and the pruning structure of FedCS unchanged and make only the
+\emph{intensity} of the pruning a function of the client's cost. In the pruning round,
+the server knows the profiled per-sample training cost $\gamma_i$ of client $i$,
+either its round time or its energy per sample depending on which resource is being
+optimised, and estimates the full-data cost of one round as
+
+\begin{equation}
+C_i = \gamma_i \, n_i \, E ,
+\label{eq:cost}
+\end{equation}
+with $n_i$ local samples and $E$ local epochs, so that $C_i$ captures the device and
+the data volume at once. The participating clients are ranked by $C_i$ into
+$r_i \in [0,1]$, where $0$ is the cheapest and $1$ the most expensive, and the rank is
+mapped linearly to a multiplier
+
+\begin{equation}
+m_i = m_{\min} + (m_{\max} - m_{\min})\, r_i
+\label{eq:mult}
+\end{equation}
+that scales the base rates under a safety cap $\kappa$:
+$p_{f,i} = \min(m_i p_f, \kappa)$ and $p_{l,i} = \min(m_i p_l, \kappa)$. We use
+$m_{\min} = 0.7$, $m_{\max} = 1.3$ and $\kappa = 0.95$, with the round time as the
+cost. The median client then prunes at exactly the base rate and only the extremes
+move: the most expensive client removes $65\%$ of its large-capacity classes instead of
+$50\%$, the cheapest one $35\%$.
+
+Three properties matter for what follows. First, the DC criterion still decides
+\emph{which} samples leave and the double-pruning structure is unchanged in form, so the
+non-IID rebalancing that motivates double pruning is preserved. Second, since the
+ranking is by cost, the \emph{additional} removal is concentrated on the clients with
+the highest per-round cost, so the cost-weighted volume of the retained data falls
+faster than its sample count; we rank by round time rather than energy, but in our
+device pool the two orderings agree except for a swap between the two cheapest boards.
+Third, the mechanism is independent of the maturity question, since it moves the energy
+of a configuration without touching the criterion or the round at which it is applied.
+One side effect is uncontrolled, in that FedAvg weights each client by the samples it
+trained on, which after pruning is its coreset size, so the adaptive rate also lowers the
+aggregation weight of the most expensive clients.
+
+\section{Experimental Setup}\label{sec:setup}
+
+The evaluation asks when the DC criterion becomes reliable, how much of the
+early-pruning loss recomputation recovers, and what each configuration costs in
+training energy. Experiments run on CIFAR-10 \cite{cifar} at its native $32\times32$ resolution,
+partitioned across $10$ clients with full participation by a Dirichlet distribution
+with $\alpha \in \{0.1, 1.0\}$ \cite{dirichlet}, for $100$ rounds. The model is a
+ResNet-18 \cite{resnet} adapted to CIFAR, with a $3\times3$ stem, no max pooling,
+average pooling between stages and group normalisation \cite{gn}; the feature space
+used by Equation~\eqref{eq:dc} is the $512$-dimensional output of its global average
+pooling. Clients run $E = 5$ local epochs per round with SGD, batch size $64$,
+momentum $0.9$, weight decay $10^{-5}$ and learning rate $10^{-2}$ decayed by a
+cosine schedule over the $100$ rounds. Every configuration is run with three seeds
+and we report the mean and standard deviation across them. Simulation uses the Flower
+framework \cite{flower}.
+
+Accuracy is the centralized accuracy on the held-out test set, averaged over the last
+six rounds to reduce round-to-round noise. Energy is the sum over rounds and clients
+of the simulated training energy,
+
+\begin{equation}
+\mathcal{E} = \sum_{t} \sum_{i} \gamma^{E}_i \, s_i(t) \, E ,
+\label{eq:energy}
+\end{equation}
+where $\gamma^{E}_i$ is the per-sample training energy of client $i$ and $s_i(t)$ is
+the number of samples that the client processes at round $t$: $n_i$ before its first
+pruning event and the size of its coreset afterwards. Profiles are drawn from a pool
+of four embedded boards profiled for this architecture (Jetson AGX Orin, Jetson Orin
+Nano, Orange Pi 5B and LattePanda Delta 3), whose per-sample training energy spans
+$0.38$ to $10.3$~J, a $27\times$ spread, and whose per-sample training time spans $23$
+to $808$~ms; that spread is the heterogeneity the adaptive rate of
+Section~\ref{sec:adaptive} exploits. Equation~\eqref{eq:energy} accounts for training
+only: the inference passes of the pruning step, communication and idle draw are not
+included. Each selection adds one inference pass over the client's full local data,
+against the $500$ local epochs of a $100$-round run, so the two selections of a
+recomputation schedule stay below $1\%$ of the training energy they accompany and
+excluding them does not change any comparison we report. It is a model, not a
+wattmeter reading, so we always report it as a ratio to
+the energy of full FedAvg training under the same profiles. Throughout the paper,
+energy means this simulated training energy.
+
+We compare four families. The first three share the same training-data budget (identical
+coreset size), which makes their comparison iso-budget: \textbf{Prune-once random},
+one random pruning at round $t$; \textbf{Prune-once DC}, one DC pruning at round $t$; and
+\textbf{DC recompute}, DC pruning on the schedule $\{t, t+\Delta\}$ with $\Delta = 40$. The fourth,
+\textbf{DC recompute + adp rate}, applies the same schedule with a per-client
+adaptive rate; it therefore processes less data and saves additional energy.
+\textbf{FedAvg} without pruning is the accuracy ceiling and the energy reference.
+
+\begin{table*}[t]
+\caption{Accuracy and energy at Dirichlet $\alpha=0.1$ (CIFAR-10, 10 clients, 100 rounds, 3 seeds). Energy is expressed as a percentage of the energy of full FedAvg training; $\Delta$acc is the difference in accuracy against the same reference. Every method trains on the full dataset until its first pruning round. The first three families are iso-budget with each other at equal $t$; the adaptive-rate rows are not, since they retain less data by construction. Bold marks the recommended operating point; $\dagger$ marks the failure case the paper characterises. All differences reported in this paper are computed from unrounded values, so they may differ by $0.01$ from the subtraction of the rounded entries.}
+\label{tab:main}
+\begin{center}
+\renewcommand{\arraystretch}{1.0}
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{Pruning round(s) $t$} & \textbf{Accuracy (\%)} & \textbf{Energy (\% of FedAvg)} & \textbf{$\Delta$acc (pp)} \\
+\hline
+FedAvg (full, ceiling) & --- & $84.86 \pm 0.38$ & $100.0$ & --- \\
+\hline
+Prune-once random & $5$ & $81.55 \pm 0.13$ & $61.0$ & $-3.31$ \\
+Prune-once random & $10$ & $81.81 \pm 0.27$ & $63.0$ & $-3.06$ \\
+Prune-once random & $20$ & $83.19 \pm 0.26$ & $67.0$ & $-1.68$ \\
+Prune-once random & $40$ & $84.01 \pm 0.18$ & $75.1$ & $-0.86$ \\
+\hline
+Prune-once DC & $5$ & $74.58 \pm 1.65$ & $61.0$ & $-10.29$~$\dagger$ \\
+Prune-once DC & $10$ & $81.79 \pm 0.62$ & $63.0$ & $-3.07$ \\
+Prune-once DC & $20$ & $83.65 \pm 0.40$ & $67.0$ & $-1.22$ \\
+Prune-once DC & $40$ & $84.47 \pm 0.25$ & $75.1$ & $-0.40$ \\
+\hline
+DC recompute & $\{5,45\}$ & $79.50 \pm 1.37$ & $61.0$ & $-5.36$ \\
+DC recompute & $\{10,50\}$ & $82.81 \pm 0.29$ & $63.0$ & $-2.05$ \\
+DC recompute & $\{20,60\}$ & $84.21 \pm 0.31$ & $67.0$ & $-0.65$ \\
+DC recompute & $\{40,80\}$ & $84.49 \pm 0.36$ & $75.1$ & $-0.38$ \\
+\hline
+DC recompute + adp rate & $\{5,45\}$ & $79.28 \pm 1.38$ & $54.1$ & $-5.59$ \\
+DC recompute + adp rate & $\{10,50\}$ & $82.35 \pm 0.96$ & $56.5$ & $-2.51$ \\
+\textbf{DC recompute + adp rate} & $\mathbf{\{20,60\}}$ & $\mathbf{84.04 \pm 0.30}$ & $\mathbf{61.2}$ & $\mathbf{-0.82}$ \\
+DC recompute + adp rate & $\{40,80\}$ & $84.32 \pm 0.19$ & $70.6$ & $-0.55$ \\
+\hline
+\end{tabular}
+\end{center}
+\end{table*}
+
+\section{Results}
+
+Table~\ref{tab:main} reports the full grid for the severe non-IID regime. We read it
+along three axes: what the maturity of the features does to the criterion, what
+recomputation buys, and what the whole thing costs in energy.
+
+\subsection{Feature maturity limits the DC criterion}\label{sec:res-maturity}
+
+At the earliest pruning round the DC criterion is actively harmful. Pruning at
+$t=5$ yields $74.58\%$ against $81.55\%$ for random pruning at the same budget, a gap
+of $-6.98$~pp, and $-10.29$~pp against full training. The two curves meet at $t=10$
+($81.79\%$ versus $81.81\%$) and DC only takes the lead from $t=20$ ($+0.46$~pp).
+A criterion meant to select the informative samples therefore does worse than ignoring
+the data, precisely where the energy savings are largest. Equation~\eqref{eq:dc}
+suggests a plausible mechanism, since with immature features a sample is as likely to
+sit inside the region of a wrong class as of its own, and since the score is
+sign-agnostic those confidently misplaced samples score high and are removed as
+redundant. The two factors interact rather than compete: with mature features few
+samples are confidently misplaced, so ignoring the sign costs little, and it is the
+immaturity of the features that makes that omission expensive. Separating the two
+contributions needs an ablation that ranks by the signed margin instead of its
+absolute value, which we did not run (Section~\ref{sec:limits}).
+
+Table~\ref{tab:gate} shows this is a measurable state of the representation, not a
+surprise. The separation ratio of Equation~\eqref{eq:sep} is below $1$ at $t=5$ in
+both regimes (a sample sits on average closer to a wrong centroid than to its own),
+and those two configurations are exactly the ones where DC loses several points to
+random ($-6.98$~pp at $\alpha=0.1$, $-3.99$~pp at $\alpha=1.0$). Once the ratio is
+above $1$, DC is never worse than random by more than $0.02$~pp. The correspondence is
+not tight enough to read a pruning round off the probe: at $\alpha=0.1$ and $t=10$ the
+ratio has reached $1.148$ while DC has only caught up, turning positive one grid point
+later. What the probe delivers reliably is the negative and useful statement that while
+the ratio is below $1$, applying the criterion is worse than ignoring it.
+Fig.~\ref{fig:maturity} overlays the two readings.
+
+Since the probe is evaluated locally, its spread matters as much as its mean. At $t=5$
+all $30$ client-seed observations lie below $1$ in both regimes, reaching at most
+$0.966$ and $0.990$, so a client deciding alone would agree with the server. The one
+round where clients disagree is $\alpha=0.1$ at $t=10$, spanning $0.982$ to $1.478$,
+precisely the round whose accuracy gap is a tie.
+
+\begin{table}[htbp]
+\caption{Maturity probe at the pruning round and the resulting gap between DC and random pruning, in percentage points. Values are means over the participating clients and the three seeds. DC loses several points to random exactly in the two configurations where the separation ratio is below $1$; wherever it is above $1$, DC is within $0.02$~pp of random or ahead of it.}
+\label{tab:gate}
+\begin{center}
+%\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{ccccccc}
+\hline
+ & \multicolumn{3}{c}{$\alpha = 0.1$} & \multicolumn{3}{c}{$\alpha = 1.0$} \\
+\cline{2-4} \cline{5-7}
+$t$ & nn\_acc & sep & DC$-$Rand & nn\_acc & sep & DC$-$Rand \\
+\hline
+$5$  & $0.358$ & $0.863$ & $-6.98$ & $0.443$ & $0.938$ & $-3.99$ \\
+$10$ & $0.673$ & $1.148$ & $-0.02$ & $0.769$ & $1.261$ & $+1.07$ \\
+$20$ & $0.810$ & $1.370$ & $+0.46$ & $0.909$ & $1.589$ & $+0.59$ \\
+$40$ & $0.869$ & $1.554$ & $+0.46$ & $0.977$ & $1.869$ & $+0.25$ \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.9\columnwidth]{{fig_maturity_alpha0.1}.png}}
+\caption{Feature maturity limits the criterion (CIFAR-10, $\alpha=0.1$, three seeds; error bars are the seed standard deviation). Left axis: final accuracy when pruning once at round $t$, for DC and for random selection at the same budget. Right axis (dotted line at $1$): the separation ratio measured at that round. DC is far below random selection while the ratio is under $1$, matches it once the ratio has crossed, and leads from $t=20$.}
+\label{fig:maturity}
+\end{figure}
+
+\subsection{Recomputation repairs early pruning at iso-budget}\label{sec:res-recompute}
+
+If the problem is that the selection was made too early, then selecting again later
+should repair it, and the size of the repair should shrink as the first selection
+becomes more reliable. This is what we observe. Against the prune-once baseline at
+the same $t$, one recomputation is worth $+4.93$~pp at $t=5$, $+1.02$~pp at $t=10$,
+$+0.57$~pp at $t=20$ and $+0.02$~pp at $t=40$. The value of recomputation is
+therefore a direct function of the immaturity of the first selection, which is the
+quantitative prediction of our hypothesis. The same ordering holds at $\alpha=1.0$,
+where recomputation is worth $+4.11$~pp at $t=5$ and $-0.07$~pp at $t=40$.
+
+Three points qualify this result. First, the gain comes from access rather than from extra
+training: both configurations train on equally sized subsets after $t$, and the second selection
+re-ranks the full local dataset and can recover samples the first one
+discarded. Second, the repair is incomplete at $t=5$: $79.50\%$ is still below the
+$81.55\%$ of random pruning, so recomputation makes early pruning survivable, not
+free. Third, the monotone decay is consistent with our hypothesis but not uniquely
+explained by it: at $t=40$ the prune-once configuration is already within $0.40$~pp of the
+ceiling, leaving little headroom regardless of maturity. Disentangling the two needs a
+schedule whose second pruning round is fixed as $t$ varies, which we did not run.
+Read by first pruning round, Table~\ref{tab:main} compares configurations that have
+spent the same energy on full data, which is the fairest way to isolate the selection
+strategy.
+
+\subsection{Energy and the Pareto front}\label{sec:res-energy}
+
+Energy is governed by how much data is processed and for how long, so pruning
+earlier saves more, and the configurations span $54.1\%$ to $75.1\%$ of full training.
+The adaptive rate adds a second, independent saving by pushing heavier pruning onto the
+slower clients; at a fixed schedule it removes a further $11.3\%$, $10.4\%$, $8.7\%$
+and $5.9\%$ of the remaining training energy of the iso-budget configuration for $\{5,45\}$
+through $\{40,80\}$, at a cost of at most $0.45$~pp, within one standard deviation
+of the seeds. That gradient follows from
+Equation~\eqref{eq:energy}: the per-client rates apply only from the first pruning
+round on, so the schedule starting at $t=5$ has $95$ rounds over which to accumulate
+the extra removal and the one starting at $t=40$ only $60$. It is cheap in accuracy for
+the reason given in Section~\ref{sec:adaptive}: the adaptive rate buys energy where
+energy is expensive and pays with data where data is cheap. By the same ranking the
+client that prunes most is the one the others wait for, so the critical path should
+shorten too; we do not measure wall-clock time and make no claim about it.
+
+The combination gives the operating point we recommend,
+\textbf{DC recompute + adp rate} on $\{20,60\}$: $84.04\% \pm 0.30$, that is
+$0.82$~pp below full training, at $61.2\%$ of its energy, a saving of $38.8\%$. As
+Fig.~\ref{fig:pareto} shows, it dominates both random and prune-once DC pruning over the
+band it spans, $54.1\%$ to $70.6\%$: for any budget in that range it is more accurate
+than either baseline, and at $61.2\%$ it already matches what random pruning attains at
+$75.1\%$. The dominance stops where the adaptive family has no point, since at a budget
+of $75.1\%$ the best configuration is DC recompute on $\{40,80\}$ at $84.49\%$, above the
+$84.32\%$ the adaptive family reaches at $70.6\%$, though the $0.17$~pp difference is
+well inside the seed standard deviation.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.9\columnwidth]{{fig_pareto_alpha0.1}.png}}
+\caption{Accuracy-energy Pareto front (CIFAR-10, $\alpha=0.1$, three seeds; error bars are the seed standard deviation). Energy is normalised by the energy of full FedAvg training; the shaded band marks accuracies within one point below the ceiling. Recomputation combined with the adaptive rate dominates random and prune-once DC pruning over the $54$ to $71\%$ band it spans. Above that band it has no point, and DC recompute on $\{40,80\}$ is the best configuration.}
+\label{fig:pareto}
+\end{figure}
+
+\subsection{Moderate label skew}
+
+Table~\ref{tab:alpha1} repeats the whole study at $\alpha=1.0$, which checks that the
+effect belongs to the criterion under label skew rather than to one Dirichlet setting.
+The picture is preserved and milder. The inversion is there: $82.15\%$ against
+$86.13\%$ at $t=5$, a gap of $-3.99$~pp, with the separation ratio again below $1$
+($0.938$). It disappears one grid point later, where DC leads by $1.07$~pp, earlier
+than at $\alpha=0.1$, as a faster-maturing representation predicts. Recomputation
+decays the same way, from $+4.11$~pp at $t=5$ to $+0.44$, $+0.04$ and $-0.07$~pp at
+$t=10$, $20$ and $40$. The adaptive rate again saves $5$ to $9\%$ of the remaining
+training energy of the iso-budget configuration at a cost of at most $0.28$~pp, giving
+$88.29\%$ at $61.1\%$ ($-0.80$~pp). With more homogeneous clients the unreliable
+window is shorter and the damage smaller.
+
+\begin{table}[htbp]
+\caption{Accuracy and energy at Dirichlet $\alpha=1.0$, same protocol as Table~\ref{tab:main}.}
+\label{tab:alpha1}
+\begin{center}
+\renewcommand{\arraystretch}{1.0}
+\setlength{\tabcolsep}{2pt}
+%\scriptsize
+\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{$t$} & \textbf{Acc. (\%)} & \textbf{Energy (\%)} & \textbf{$\Delta$acc} \\
+\hline
+FedAvg (full) & --- & $89.08 \pm 0.24$ & $100.0$ & --- \\
+\hline
+Prune-once random & $5$ & $86.13 \pm 0.98$ & $64.8$ & $-2.95$ \\
+Prune-once random & $10$ & $86.88 \pm 0.63$ & $66.6$ & $-2.20$ \\
+Prune-once random & $20$ & $88.26 \pm 0.35$ & $70.3$ & $-0.82$ \\
+Prune-once random & $40$ & $89.02 \pm 0.22$ & $77.5$ & $-0.06$ \\
+\hline
+Prune-once DC & $5$ & $82.15 \pm 1.81$ & $64.8$ & $-6.94$ \\
+Prune-once DC & $10$ & $87.95 \pm 0.51$ & $66.6$ & $-1.14$ \\
+Prune-once DC & $20$ & $88.85 \pm 0.18$ & $70.3$ & $-0.23$ \\
+Prune-once DC & $40$ & $89.27 \pm 0.35$ & $77.5$ & $+0.19$ \\
+\hline
+DC recompute & $\{5,45\}$ & $86.25 \pm 0.83$ & $64.8$ & $-2.83$ \\
+DC recompute & $\{10,50\}$ & $88.38 \pm 0.53$ & $66.6$ & $-0.70$ \\
+DC recompute & $\{20,60\}$ & $88.89 \pm 0.35$ & $70.3$ & $-0.19$ \\
+DC recompute & $\{40,80\}$ & $89.20 \pm 0.20$ & $77.5$ & $+0.12$ \\
+\hline
+DC rec. + adp rate & $\{5,45\}$ & $85.97 \pm 0.96$ & $58.9$ & $-3.11$ \\
+DC rec. + adp rate & $\{10,50\}$ & $88.29 \pm 0.38$ & $61.1$ & $-0.80$ \\
+DC rec. + adp rate & $\{20,60\}$ & $88.74 \pm 0.12$ & $65.3$ & $-0.34$ \\
+DC rec. + adp rate & $\{40,80\}$ & $89.09 \pm 0.25$ & $73.7$ & $+0.00$ \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Discussion and Limitations}\label{sec:limits}
+
+The energy figures come from a simulated device model proportional to the volume of
+data processed, not from physical measurement; they are meaningful as ratios between
+methods under identical profiles, and we claim no absolute joules. Because it is an
+identity in the data volume, the model makes the energy column an accounting consequence
+of the pruning rates rather than an independent measurement, and what the experiments
+establish is the accuracy those rates cost. It also ignores inference, communication
+and idle draw, so the pruning step and the probe are counted as free, within the bound
+given in Section~\ref{sec:setup}. In the severe
+regime the advantage of DC over random at high $t$ is around half a point, of the order
+of the seed variance; with three seeds and no significance test, differences below
+roughly half a point are ties.
+
+Four controls are missing. Without a random \emph{recomputation} control, the $+4.93$~pp
+of Section~\ref{sec:res-recompute} cannot be attributed to the maturity of the second
+selection rather than to the act of re-selecting from the full dataset. Without an
+ablation that ranks samples by the signed margin instead of the absolute value used by
+FedCS \cite{fedcs}, the contribution of immature features cannot be separated from that
+of the sign-agnostic score of Equation~\eqref{eq:dc}. Our schedule
+moves the second pruning round together with the first, coupling maturity with the
+number of rounds that follow it. And the adaptive rate changes the FedAvg aggregation
+weights along with the data volume (Section~\ref{sec:adaptive}).
+
+The scope is narrow in four further ways. The rates $p_f$, $p_l$ and $\beta$ are
+fixed, so we do not compare ``prune later'' against the equally available ``prune
+less'', and the recomputation gap is evaluated at the single value $\Delta = 40$;
+the only criteria compared are DC and uniform random, not other importance
+scores or efficiency mechanisms such as client selection \cite{criticalfl}; and with
+ten clients at full participation the cost ranking is static and never exercised under
+partial participation. Finally, all results are on one dataset and one architecture,
+so a second dataset is needed before claiming the effect is a property of non-IID
+federated training rather than of CIFAR-10.
+
+\section{Conclusion}
+
+Coreset pruning in federated learning is usually framed as \emph{how many} samples to
+remove. Our results show that under non-IID data the binding question is \emph{when}
+the criterion becomes trustworthy: applied to immature features, an importance
+criterion is worse than random selection at the same budget, in both skew regimes we
+study. The state of the representation is observable from a probe computed out of
+distances the criterion already needs, the damage is largely reversible by recomputing
+the selection at the same training-data budget, and the repaired configuration composes with a
+per-client adaptive rate to stay within one point of full training at about 61\% of
+its energy.
+Future work should confirm the effect on a second dataset, isolate the contribution of
+re-selection with a random recomputation control, and drive the pruning schedule
+directly from the probe instead of from a fixed round.
+
+\section*{Acknowledgment}
+This paper was supported by the Brazilian Ministry of Science, Technology and Innovations, with resources from Law nº 8,248, of October 23, 1991, within the scope of PPI-SOFTEX, coordinated by Softex and published Arquitetura Cognitiva (Phase 3), DOU 01245.003479/2024-10, and by Conselho Nacional de Desenvolvimento Científico e Tecnológico (CNPq).
+
+\begin{thebibliography}{00}
+\bibitem{fedavg} B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. Ag\"{u}era y Arcas, ``Communication-efficient learning of deep networks from decentralized data,'' in Proc. AISTATS, 2017, pp. 1273--1282.
+\bibitem{greenfl} D. Thakur, A. Guzzo, G. Fortino, and F. Piccialli, ``Green federated learning: A new era of green aware AI,'' ACM Comput. Surv., vol. 57, no. 8, pp. 1--36, 2025.
+\bibitem{coreset} B. Mirzasoleiman, J. Bilmes, and J. Leskovec, ``Coresets for data-efficient training of machine learning models,'' in Proc. ICML, 2020, pp. 6950--6960.
+\bibitem{dirichlet} T.-M. H. Hsu, H. Qi, and M. Brown, ``Measuring the effects of non-identical data distribution for federated visual classification,'' arXiv:1909.06335, 2019.
+\bibitem{gn} Y. Wu and K. He, ``Group normalization,'' in Proc. ECCV, 2018, pp. 3--19.
+\bibitem{fedcs} C. Hao, W. Xie, D. Li, H. Qin, H. Ye, L. Fang, and Y. Li, ``FedCS: Coreset selection for federated learning,'' in Proc. IEEE/CVF CVPR, 2025, pp. 15434--15443.
+\bibitem{sampling} A. K. Mishra and D. Puthal, ``Data sampling in federated learning: Principles, features and taxonomy,'' IEEE Commun. Standards Mag., vol. 7, no. 4, pp. 28--33, 2023.
+\bibitem{fedbalancer} J. Shin, Y. Li, Y. Liu, and S.-J. Lee, ``FedBalancer: Data and pace control for efficient federated learning on heterogeneous clients,'' in Proc. ACM MobiSys, 2022, pp. 436--449.
+\bibitem{sampleselect} A. Li, L. Zhang, J. Tan, Y. Qin, J. Wang, and X.-Y. Li, ``Sample-level data selection for federated learning,'' in Proc. IEEE INFOCOM, 2021, pp. 1--10.
+\bibitem{criticalfl} G. Yan, H. Wang, X. Yuan, and J. Li, ``CriticalFL: A critical learning periods augmented client selection framework for efficient federated learning,'' in Proc. ACM SIGKDD, 2023.
+\bibitem{cifar} A. Krizhevsky, ``Learning multiple layers of features from tiny images,'' Univ. of Toronto, Tech. Rep., 2009.
+\bibitem{resnet} K. He, X. Zhang, S. Ren, and J. Sun, ``Deep residual learning for image recognition,'' in Proc. IEEE CVPR, 2016, pp. 770--778.
+\bibitem{flower} D. J. Beutel et al., ``Flower: A friendly federated learning research framework,'' arXiv:2007.14390, 2020.
+\end{thebibliography}
+\end{document}

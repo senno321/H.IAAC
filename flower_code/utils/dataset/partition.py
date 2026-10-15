@@ -232,10 +232,10 @@ class DatasetFactory:
     ) -> FederatedDataset:
         """Create or retrieve a cached FederatedDataset for a given dataset_id."""
         if dataset_id not in cls._fds_cache:
-            if dataset_id == 'uoft-cs/cifar10':
+            if dataset_id in ('uoft-cs/cifar10', 'uoft-cs/cifar100'):
                 partitioner = DirichletPartitioner(
                     num_partitions=num_partitions,
-                    partition_by="label",
+                    partition_by=DatasetConfig.BATCH_VALUE[dataset_id],
                     alpha=alpha,
                     seed=seed,
                     min_partition_size=1,
@@ -473,7 +473,7 @@ class DatasetFactory:
             seed: int = 42,
             input_shape=None,
     ) -> Any:
-        if dataset_id == "uoft-cs/cifar10":
+        if dataset_id in ("uoft-cs/cifar10", "uoft-cs/cifar100"):
             return cls._get_img_class_partition(
                 dataset_id, partition_id, num_partitions, alpha, batch_size, seed, input_shape=input_shape
             )
@@ -501,7 +501,7 @@ class DatasetFactory:
         """
         Returns a DataLoader for the global test set (not partitioned).
         """
-        if dataset_id == "uoft-cs/cifar10":
+        if dataset_id in ("uoft-cs/cifar10", "uoft-cs/cifar100"):
             fds = cls._get_federated_dataset(dataset_id, num_partitions, alpha, seed)
             test_ds = fds.load_split("test").with_transform(
                 DatasetConfig.get_transform(dataset_id, is_train=False, input_shape=input_shape)

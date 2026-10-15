@@ -7,6 +7,7 @@ Documento de plano (não é spec de código). Define objetivo do artigo, o que r
 **Tese:** em FL não-IID, escores de importância de coreset (DC do FedCS) são **não-confiáveis enquanto os features estão imaturos**. Podar cedo com eles é **pior que aleatório**. Existe um **sinal observável** de maturação (dinâmica do gradiente / drift dos centroides) que permite **recomputar o coreset no tempo certo** e **escolher melhor quais amostras manter**, revertendo o resultado: passa a **superar o Random** com menos dados.
 
 **Contribuições:**
+
 - Diagnóstico: mostrar *por que* a poda estática precoce falha (features imaturos → geometria sem sentido → DC < Random).
 - Sinal + método: recomputação do DC disparada por dinâmica de treino (razão de gradiente, à la Critical-FL), com currículo fácil→difícil.
 - Extensão opcional (eficiência): compor com taxa de poda adaptativa por cliente (energia/straggler) **depois** de consertar a seleção.
@@ -15,97 +16,160 @@ Documento de plano (não é spec de código). Define objetivo do artigo, o que r
 
 ## 2. Hipótese e evidência já disponível
 
-| Evidência | Fonte | O que mostra |
-|---|---|---|
+
+| Evidência                 | Fonte                                       | O que mostra                                                                                                                        |
+| ------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Divergência de pré-treino | probe BN vs GN (`outputs/probe_pretrain_*`) | Teste trava em ~10% enquanto treino chega a 70%; **não é BatchNorm** (GN não conserta) → cold-start não-IID; features imaturos cedo |
-| DC < Random consistente | `outputs/steps12` (2 seeds) | FedAvg > Random > **todas** as variantes DC (fixo, budget, taxa adaptativa, floor) nos dois α |
-| Taxa adaptativa não salva | `steps12` | Ajustar *quantas* por cliente não corrige o *quais* quebrado → problema é seleção, não orçamento |
+| DC < Random consistente   | `outputs/steps12` (2 seeds)                 | FedAvg > Random > **todas** as variantes DC (fixo, budget, taxa adaptativa, floor) nos dois α                                       |
+| Taxa adaptativa não salva | `steps12`                                   | Ajustar *quantas* por cliente não corrige o *quais* quebrado → problema é seleção, não orçamento                                    |
+
+
+
 
 ## 3. Setup experimental
 
-| Item | Escolha | Justificativa |
-|---|---|---|
-| Dataset | CIFAR-10 | fiel ao FedCS; foco em profundidade |
-| Resolução | **32×32 nativo** | mata o upscaling na CPU (gargalo dos ~15 min/rodada); baixa-res é o regime do paper original |
-| Modelo | **ResNet-CIFAR-GN** (`resnet_cifar`: ResNet-18 adaptado — stem 3×3, sem maxpool, GroupNorm) — **decidido** como modelo do paper. SimpleCNN validou o pipeline e fica como *fallback* barato | ShuffleNet / ResNet-18 torchvision degeneram em 32×32 (stem 7×7 + maxpool → mapa 1×1) e usam BatchNorm (instável em não-IID). GN é padrão em FL não-IID; features discriminativas sustentam o DC/Gate 2 — SimpleCNN tem teto baixo e features fracas (Gate2≈0,31), abafaria a tese |
-| Não-IID | Dirichlet α ∈ {0.1, 1.0} | severo e moderado |
-| Clientes | 10, participação total | igual ao setup atual |
-| Rodadas | 100 (fallback 60) | |
-| Seeds | **{1, 2, 3}** | estatística (o setup antigo tinha 1 seed — fraqueza) |
-| Paralelismo | **resolvido**: `max_workers` do servidor passou a usar `num-participants` (era `0.1×num-clients`=1 com 10 clientes → serial) | 10 clientes concorrentes em 1 GPU via `client-resources.num-gpus=0.1`; confirmado ~10 actors no `nvidia-smi` |
-| GPUs | 2 (paraleliza por α/seed) | dobra throughput; impacto real no nº de runs |
+
+| Item        | Escolha                                                                                                                                                                                     | Justificativa                                                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dataset     | CIFAR-10                                                                                                                                                                                    | fiel ao FedCS; foco em profundidade                                                                                                                                                                                                                                                |
+| Resolução   | **32×32 nativo**                                                                                                                                                                            | mata o upscaling na CPU (gargalo dos ~15 min/rodada); baixa-res é o regime do paper original                                                                                                                                                                                       |
+| Modelo      | **ResNet-CIFAR-GN** (`resnet_cifar`: ResNet-18 adaptado — stem 3×3, sem maxpool, GroupNorm) — **decidido** como modelo do paper. SimpleCNN validou o pipeline e fica como *fallback* barato | ShuffleNet / ResNet-18 torchvision degeneram em 32×32 (stem 7×7 + maxpool → mapa 1×1) e usam BatchNorm (instável em não-IID). GN é padrão em FL não-IID; features discriminativas sustentam o DC/Gate 2 — SimpleCNN tem teto baixo e features fracas (Gate2≈0,31), abafaria a tese |
+| Não-IID     | Dirichlet α ∈ {0.1, 1.0}                                                                                                                                                                    | severo e moderado                                                                                                                                                                                                                                                                  |
+| Clientes    | 10, participação total                                                                                                                                                                      | igual ao setup atual                                                                                                                                                                                                                                                               |
+| Rodadas     | 100 (fallback 60)                                                                                                                                                                           |                                                                                                                                                                                                                                                                                    |
+| Seeds       | **{1, 2, 3}**                                                                                                                                                                               | estatística (o setup antigo tinha 1 seed — fraqueza)                                                                                                                                                                                                                               |
+| Paralelismo | **resolvido**: `max_workers` do servidor passou a usar `num-participants` (era `0.1×num-clients`=1 com 10 clientes → serial)                                                                | 10 clientes concorrentes em 1 GPU via `client-resources.num-gpus=0.1`; confirmado ~10 actors no `nvidia-smi`                                                                                                                                                                       |
+| GPUs        | 2 (paraleliza por α/seed)                                                                                                                                                                   | dobra throughput; impacto real no nº de runs                                                                                                                                                                                                                                       |
+
+
+
 
 ## 4. Métodos comparados (a "espinha")
 
-| Sigla | Método | Papel |
-|---|---|---|
-| B0 | FedAvg full (sem poda) | teto |
-| B1 | Random prune (mesmo budget) | **baseline a bater** |
-| B2 | DC estático (poda 1× cedo) | motivação (quebrado) |
-| M1 | **DC recomputado no tempo certo** (maturidade / periódico) | núcleo — o "QUANDO" |
-| M2 | M1 + currículo por razão de gradiente (fácil→difícil) | novidade — o "QUAIS" |
-| E1 | M1/M2 + taxa adaptativa por cliente | extensão de eficiência (opcional) |
+
+| Sigla | Método                                                     | Papel                             |
+| ----- | ---------------------------------------------------------- | --------------------------------- |
+| B0    | FedAvg full (sem poda)                                     | teto                              |
+| B1    | Random prune (mesmo budget)                                | **baseline a bater**              |
+| B2    | DC estático (poda 1× cedo)                                 | motivação (quebrado)              |
+| M1    | **DC recomputado no tempo certo** (maturidade / periódico) | núcleo — o "QUANDO"               |
+| M2    | M1 + currículo por razão de gradiente (fácil→difícil)      | novidade — o "QUAIS"              |
+| E1    | M1/M2 + taxa adaptativa por cliente                        | extensão de eficiência (opcional) |
+
+
+
 
 ## 5. Experimentos
 
-### 5.1 Experimento-chave: curva de maturidade
-Varrer a rodada de poda `t ∈ {2, 5, 10, 20, 40}` (DC estático podando em `t`) e plotar, por rodada:
-- **qualidade do DC** naquele momento (nearest-centroid acc / razão de separação — Gate 2 já instrumentado);
-- **acurácia final** ao podar em `t`.
 
-Formato esperado: podar cedo = catástrofe; existe ótimo que o **sinal prevê**. Figura que carrega o paper.
+
+### 5.1 Experimento-chave: curva de maturidade (DC vs Random)
+
+Varrer a rodada de poda `t ∈ {5, 10, 20, 40}` (a rodada 2 é pulada: a seleção cai em `t−1`, inviável tão cedo) e plotar, por `t`:
+
+- **qualidade do DC** naquele momento (nearest-centroid acc / razão de separação — Gate 2 já instrumentado);
+- **acurácia final** ao podar em `t`, para **DC** (`random-prune=false`) **e Random** (`random-prune=true`, mesmo budget) — **duas curvas no mesmo eixo**.
+
+**Achado esperado:** em `t` baixo (features imaturas) **DC ≈ Random** (o critério não vale); conforme `t` cresce, **DC descola do Random** → a vantagem do DC é **função da maturidade**, não existe cedo. Antes só havia Random em `t=10` (1 ponto); agora é a curva inteira. Também: podar cedo = catástrofe, existe ótimo que o **sinal (Gate 2) prevê**. Figura que carrega o paper.
 
 ### 5.2 Comparação principal
+
 {B0, B1, M1} × α{0.1, 1.0} × seeds{1,2,3}. B2 reaproveita pontos da §5.1.
 
 ### 5.3 Método completo + ablations
+
 - M2 × α{0.1,1.0} × seeds{1,2,3}.
 - Ablation de **gatilho**: {razão-gradiente, drift-de-features, K-fixo, platô} — mostra que a maturidade é observável por vários sinais.
 - Ablation de **currículo**: {fácil→difícil, difícil→fácil, aleatório-no-top-K}.
 
+
+
 ### 5.4 Extensão de eficiência (se sobrar tempo)
+
 E1 = M1/M2 + taxa adaptativa por cliente × α{0.1,1.0}. Métrica: mesma acurácia com **menos energia** (reaproveita infra `adaptive_rate`).
+
+### 5.5 Recompute × maturidade (pareado) — o "QUANDO", com eixo de energia
+
+Desenho **fatorial 2×**, reportado como **duas ablações independentes**. Nunca misturar: a taxa adaptativa mexe na **energia** e baixa levemente a **acurácia** (−0,1 a −0,5 pp); misturar confundiria o efeito do recompute com o da taxa.
+
+**Eixo A — acurácia (taxa fixa** `pf=0.5`**/**`pl=0.1`**).** Para cada maturidade `t`, comparar **poda única** vs **poda única + 1 recompute** começando em `t` (2º evento ~40 rodadas depois):
+
+
+| Maturidade (1ª poda) | Poda única      | + 1 recompute          |
+| -------------------- | --------------- | ---------------------- |
+| 5                    | `5` (reusa B2)  | `5,45`                 |
+| 10                   | `10` (reusa B2) | `10,50` (= M1, já tem) |
+| 20                   | `20` (reusa B2) | `20,60`                |
+| 40                   | `40` (reusa B2) | `40,80`                |
+
+
+Comparação **iso-custo por ponto**: único `{t}` e recompute `{t,t+40}` começam na mesma rodada → mesmo custo; a única diferença é o 2º evento. Trajetória idêntica até a 1ª poda (o `pretrain=t−2` do B2 estático equivale ao `pretrain=2` dinâmico — até a poda, treino em dados cheios nos dois). **Achado esperado:** o **gap = valor do recompute** encolhe com a maturidade — grande ao podar cedo (o recompute resgata a poda precoce), pequeno ao podar tarde (a 1ª poda já é boa).
+
+**Eixo B — energia (taxa adaptativa on/off).** As mesmas agendas de recompute **com** `adaptive_rate` (lento poda mais, rápido poda menos), comparadas **sem** adaptativa em **iso-acurácia**: mede a economia mantendo a acurácia. `{10,50}+adarate` = E1 (já tem, ~8–11% menos energia); estender a `5,45`, `20,60`, `40,80` mostra que a economia vale em **qualquer** posição de recompute.
+
+Matriz nova (α ∈ {0.1, 1.0}, seeds {1,2,3}):
+
+
+| Bloco                         | Agendas novas                      | Reusa                             |
+| ----------------------------- | ---------------------------------- | --------------------------------- |
+| Eixo A (recompute, taxa fixa) | `5,45`, `20,60`, `40,80`           | `10,50` (M1); `{5,10,20,40}` (B2) |
+| Eixo B (recompute + adarate)  | `5,45`, `20,60`, `40,80` + adarate | `10,50`+adarate (E1)              |
+
+
+Cada agenda de recompute é rodada **duas vezes na mesma chamada** do runner: **M1** (taxa fixa → Eixo A) e **E1** (adarate → Eixo B). São 6 runs/agenda por α (3 seeds × 2), i.e. **18 runs novos/α** (9 fixas + 9 adarate); o `{10,50}` (M1 e E1) já existe.
 
 ## 6. Fases e previsão de tempo
 
 Premissa: regime rápido ≈ **3 h/run** (100 rodadas, 32×32, paralelo); 2 GPUs em paralelo.
 
-| Fase | Conteúdo | Runs | Tempo (2 GPU) |
-|---|---|---|---|
-| 0 | Setup: 32×32 + modelo (`resnet_cifar`) + paralelismo (resolvido) + Gate 2 em JSON + validar M1 — **feito** com SimpleCNN; falta cravar o tempo/rodada do `resnet_cifar` | — | ~0,5–1 dia |
-| 1 | Curva de maturidade (§5.1) + comparação principal (§5.2) | ~30 | ~1,5 dia |
-| 2 | M2 + ablations (§5.3) | ~18 | ~1 dia |
-| 3 | Eficiência E1 (§5.4, opcional) | ~8 | ~0,5 dia |
-| 4 | Buffer, plots, escrita das figuras/tabelas | — | ~1–1,5 dia |
+
+| Fase | Conteúdo                                                                                                                                                                | Runs | Tempo (2 GPU) |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------------- |
+| 0    | Setup: 32×32 + modelo (`resnet_cifar`) + paralelismo (resolvido) + Gate 2 em JSON + validar M1 — **feito** com SimpleCNN; falta cravar o tempo/rodada do `resnet_cifar` | —    | ~0,5–1 dia    |
+| 1    | Curva de maturidade (§5.1) + comparação principal (§5.2)                                                                                                                | ~30  | ~1,5 dia      |
+| 2    | M2 + ablations (§5.3)                                                                                                                                                   | ~18  | ~1 dia        |
+| 3    | Eficiência E1 (§5.4, opcional)                                                                                                                                          | ~8   | ~0,5 dia      |
+| 4    | Buffer, plots, escrita das figuras/tabelas                                                                                                                              | —    | ~1–1,5 dia    |
+
 
 Total núcleo (Fases 0–2): **~4 dias**. Com extensão e buffer: **~6 dias** → cabe nos 7 com folga.
 
 ## 7. Riscos e contingências
 
-| Risco | Mitigação |
-|---|---|
+
+| Risco                                | Mitigação                                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | Paralelismo não subir (segue serial) | fallback: 60 rodadas e/ou 2 seeds; diagnosticar nº de actors/recursos no Fase 0 antes de comprometer a matriz |
-| Adaptação ResNet-CIFAR demorar | fallback imediato SimpleCNN (já existe) |
-| M1/M2 só empatarem com Random | paper sobrevive: diagnóstico + curva de maturidade já são contribuição |
-| E1 (eficiência) com números sujos | cortar sem dó; é opcional |
+| Adaptação ResNet-CIFAR demorar       | fallback imediato SimpleCNN (já existe)                                                                       |
+| M1/M2 só empatarem com Random        | paper sobrevive: diagnóstico + curva de maturidade já são contribuição                                        |
+| E1 (eficiência) com números sujos    | cortar sem dó; é opcional                                                                                     |
+
+
+
 
 ## 8. Entregáveis do artigo
 
-- **Fig. 1** — curva de maturidade (qualidade do DC × benefício da poda × rodada).
+- **Fig. 1** — curva de maturidade **DC vs Random** (qualidade do DC × benefício da poda × `t`); DC descola do Random ao maturar.
 - **Fig. 2** — acurácia por rodada: B0/B1/B2/M1/M2 (α=0,1 e 1,0).
+- **Fig. 3** — recompute pareado (§5.5): poda única vs +1 recompute × maturidade `t` (gap = valor do recompute, iso-custo); painel de energia (adarate on/off, iso-acurácia).
 - **Tab. 1** — acurácia final (média ± dp, 3 seeds) × α × método.
 - **Tab. 2** — ablations (gatilho, currículo).
 - **Tab. 3 (opcional)** — eficiência (acurácia vs energia) com E1.
 
+
+
 ## 9. Execução (operacional): comandos e pegadinhas
 
-Runner: `run_exp/maturidade/run_bateria.sh`. Modelo do paper: **`resnet_cifar`** (via `MODEL_OVERRIDE=resnet_cifar`). **batch-size=64** (default do runner; o `_common.sh` usava 8, herança do ShuffleNet@224. Batch 128 com 10 clientes × base=64 dá OOM nos 24 GB; 64 cabe (~14 GB) e é ~8× menos iterações que 8. Override: `BATCH_OVERRIDE`; com base=32 dá pra usar 128).
+Runner: `run_exp/maturidade/run_bateria.sh`. Modelo do paper: `resnet_cifar` (via `MODEL_OVERRIDE=resnet_cifar`). **batch-size=64** (default do runner; o `_common.sh` usava 8, herança do ShuffleNet@224. Batch 128 com 10 clientes × base=64 dá OOM nos 24 GB; 64 cabe (~14 GB) e é ~8× menos iterações que 8. Override: `BATCH_OVERRIDE`; com base=32 dá pra usar 128).
 
 **Pré-requisitos (máquina compartilhada, ex.: thedeep):**
+
 - `/` costuma estar 100% cheio; o Ray grava em `/tmp/ray`. **Sempre** exportar `RAY_TMPDIR` para um disco com espaço e caminho CURTO (ex.: `/local2/lucas_s/ray_tmp`) no MESMO shell, antes do script.
 - Exportar `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (reduz fragmentação de memória; margem contra OOM).
 - Confirmar 2 GPUs: `nvidia-smi -L`.
 - Memória (batch 64, base=64, 10 clientes): ~16 GB / 24 GB por GPU — cabe com folga.
+
+
 
 ### Passo 0 — smoke do `resnet_cifar` (cravar tempo/rodada antes de comprometer a noite)
 
@@ -125,7 +189,7 @@ Se o tempo/rodada for alto demais para a matriz caber, cortar (fallback §7): `N
 
 Rodar duas baterias do MESMO checkout ao mesmo tempo tem corrida no **setup** (o `_common.sh` faz `sed` no `pyproject.toml` e escreve em `model/` e `profiles/` compartilhados). Solução: gerar modelos+profiles UMA vez, depois disparar as duas GPUs com `--skip-setup` (setup é independente de α; os `outputs/` não colidem porque α entra no nome da pasta).
 
-**Passo 1 — setup único (gera `model/`+`profiles/` p/ seeds {1,2,3}; não roda treino; espera terminar):**
+**Passo 1 — setup único (gera** `model/`**+**`profiles/` **p/ seeds {1,2,3}; não roda treino; espera terminar):**
 
 ```bash
 export RAY_TMPDIR=/local2/lucas_s/ray_tmp
@@ -138,7 +202,7 @@ RUN_B0=false RUN_B1=false RUN_MATURITY=false RUN_M1=false RUN_E1=false \
 
 (É esperado "Jobs totais: 0" — este passo só gera os `.pth` e `profiles.json`.)
 
-**Passo 2 — as duas GPUs em paralelo (cada uma num tmux/terminal), com `--skip-setup`:**
+**Passo 2 — as duas GPUs em paralelo (cada uma num tmux/terminal), com** `--skip-setup`**:**
 
 ```bash
 # GPU 0 → α = 0.1
@@ -174,7 +238,8 @@ rm -rf "outputs/maturidade/fedavg_fedcs_dynamic_constant_10_pretrain2_pf0.5_pl0.
 
 Quando as duas GPUs são **hosts SSH distintos** (filesystems independentes), **não há corrida de setup**: ignore o Passo 1/2 acima. Cada host faz o **próprio setup** e roda **um α inteiro**; o git é o mecanismo de sync. Não precisa `--skip-setup` nem `CUDA_VISIBLE_DEVICES` (1 GPU por host).
 
-**Montar o ambiente do zero (host novo, sem `.venv`):**
+**Montar o ambiente do zero (host novo, sem** `.venv`**):**
+
 - Achar um disco local com espaço (o `/` costuma ter pouco; ex.: na `thedeep2` é `/local1/lucas_senno`, 96 GB). Clonar o repo lá e usá-lo para `RAY_TMPDIR`. O `/home` de rede (NFS) não é gravável → use `MPLCONFIGDIR`/`TMPDIR` no disco local.
 - Fixar as **mesmas versões** da máquina que já roda (reprodutibilidade): `flwr[simulation]==1.20.0`, `flwr-datasets[vision]==0.5.0`. O `scipy` é dependência do runtime (`client/fedcs.py`) mas **não** está no `pyproject` — instalar à mão.
 
@@ -188,7 +253,7 @@ pip install "flwr[simulation]==1.20.0" "flwr-datasets[vision]==0.5.0" scipy
 python -c "import flwr, scipy; print(flwr.__version__, scipy.__version__)"  # 1.20.0 …
 ```
 
-**Rodar (um α por host), em `tmux`:**
+**Rodar (um α por host), em** `tmux`**:**
 
 ```bash
 export RAY_TMPDIR=/local1/<user>/ray_tmp
@@ -201,16 +266,45 @@ MODEL_OVERRIDE=resnet_cifar \
 
 **Confirmar que treina (não é submit async):** o B0 deve **bloquear** e imprimir `All 10 client(s) connected` → `[ROUND 1]`, `[ROUND 2]…`; `nvidia-smi` mostra ~10 `ray::ClientAppActor`. Se varrer os 24 jobs em segundos, está em modo SuperLink (ver tabela).
 
+### Passo 3 — baterias adicionais (baseline Random estendido + recompute pareado)
+
+Mesmo runner (um α por host; as pastas de saída são únicas por tag/`t`/α/seed — não colidem).
+
+**(a) Curva de maturidade do Random** (§5.1) — Random podando em `t ∈ {5,20,40}` (o `t=10` já existe). O `PRETRAIN_STATIC` controla a rodada da poda (`t = pretrain+2`); só o bloco B1 (random) roda:
+
+```bash
+for PRE in 3 18 38; do            # t = 5, 20, 40
+  PRETRAIN_STATIC=$PRE MODEL_OVERRIDE=resnet_cifar \
+  RUN_B0=false RUN_MATURITY=false RUN_M1=false RUN_E1=false \
+    ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1
+done
+```
+
+**(b) Recompute pareado + adarate** (§5.5) — agendas `{5,45}`, `{20,60}`, `{40,80}` (o `{10,50}` já é M1/E1). Cada chamada roda M1 (taxa fixa) **e** E1 (adarate) da agenda:
+
+```bash
+for SCHED in "5,45" "20,60" "40,80"; do
+  M1_PRUNE_ROUNDS="$SCHED" MODEL_OVERRIDE=resnet_cifar \
+  RUN_B0=false RUN_B1=false RUN_MATURITY=false \
+    ./run_exp/maturidade/run_bateria.sh gpu-sim-dl-10-1gpu --alpha 0.1
+done
+```
+
+(Trocar `--alpha 0.1` por `1.0` no outro host. `pretrain=2` fixo nos recomputes mantém a trajetória idêntica à poda única até o 1º evento. Exportar `RAY_TMPDIR`/`PYTORCH_CUDA_ALLOC_CONF`/`MPLCONFIGDIR` antes, como nos passos anteriores.)
+
 ### Pegadinhas já resolvidas (não repetir)
 
-| Sintoma | Causa | Correção | Onde |
-|---|---|---|---|
-| Só 1–2 actors; rodada serial (~10× lenta) | `set_max_workers(int(0.1*num-clients))` = 1 com 10 clientes | `max(num-participants, num-evaluators)` | `utils/simulation/workflow.py` (`get_server_app_components`) |
-| `(raylet) /tmp/ray over 95% full`; trava | Ray grava em `/tmp/ray`; `/` cheio | `export RAY_TMPDIR=<disco>/ray_tmp` (guarda falha rápido) | `run_bateria.sh` |
-| `Model: Shufflenet …` e `rounds=100` mesmo com override | `_common.sh` define MODEL/N_ROUNDS incondicionalmente | usar sufixo `_OVERRIDE` | `run_bateria.sh` |
-| `FileNotFoundError: utils/profile/<model>.json` | `devices-profile-path = ./utils/profile/${MODEL}.json` sem profile do modelo | criar o JSON de profile (tempo/energia por dispositivo; só simulado, não afeta acurácia) | `utils/profile/{simplecnn,resnet_cifar}.json` |
-| `-bash: … No such file or directory` no `export` | colou o placeholder literal `<disco…>` | usar o caminho real | — |
-| Bateria "termina" em segundos; 24 jobs só imprimem `Success`/`'federations'`; nada treina | flwr novo (instalado num venv do zero) migra p/ modo **SuperLink/deployment**: `flwr run` **submete** e retorna (assíncrono), deixa `superlink`/`superexec` zumbis | fixar `flwr==1.20.0` (reinstalar limpo: `pip uninstall -y flwr`), matar zumbis (`pkill -f flower-superlink; pkill -f flower-superexec`), apagar `rm -rf .runhome/.flwr` | host novo (`thedeep2`) |
-| `LoadClientAppError` / `ModuleNotFoundError: No module named 'scipy'` | `scipy` é usado em `client/fedcs.py` (`cdist`) mas não está no `pyproject` | `pip install scipy` no venv | host novo |
-| `[project].name "perf_eval_cs_fl" is invalid` | flwr novo rejeita `_` no nome do app | usar flwr 1.20.0 (aceita `_`); ou nome com hífens | flwr ≥ nova vs 1.20.0 |
-| Bateria morre no meio: `ray.exceptions.OutOfMemoryError` / `Task was killed due to the node running low on memory` (RAM do host, **não** VRAM) | RAM baixa (ex.: `thedeep` 15.5 GB); 10 `ClientAppActor` (~1.2 GB cada) + superlink (~2.4 GB) passam do teto de 95% | reduzir concorrência: `client-resources.num-gpus` 0.1→0.2 (10→5 simultâneos, em ondas; mesmo resultado, só mais lento) | `pyproject.toml` federação `gpu-sim-dl-10-1gpu` (edição local por host) |
+
+| Sintoma                                                                                                                                        | Causa                                                                                                                                                              | Correção                                                                                                                                                                | Onde                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Só 1–2 actors; rodada serial (~10× lenta)                                                                                                      | `set_max_workers(int(0.1*num-clients))` = 1 com 10 clientes                                                                                                        | `max(num-participants, num-evaluators)`                                                                                                                                 | `utils/simulation/workflow.py` (`get_server_app_components`)            |
+| `(raylet) /tmp/ray over 95% full`; trava                                                                                                       | Ray grava em `/tmp/ray`; `/` cheio                                                                                                                                 | `export RAY_TMPDIR=<disco>/ray_tmp` (guarda falha rápido)                                                                                                               | `run_bateria.sh`                                                        |
+| `Model: Shufflenet …` e `rounds=100` mesmo com override                                                                                        | `_common.sh` define MODEL/N_ROUNDS incondicionalmente                                                                                                              | usar sufixo `_OVERRIDE`                                                                                                                                                 | `run_bateria.sh`                                                        |
+| `FileNotFoundError: utils/profile/<model>.json`                                                                                                | `devices-profile-path = ./utils/profile/${MODEL}.json` sem profile do modelo                                                                                       | criar o JSON de profile (tempo/energia por dispositivo; só simulado, não afeta acurácia)                                                                                | `utils/profile/{simplecnn,resnet_cifar}.json`                           |
+| `-bash: … No such file or directory` no `export`                                                                                               | colou o placeholder literal `<disco…>`                                                                                                                             | usar o caminho real                                                                                                                                                     | —                                                                       |
+| Bateria "termina" em segundos; 24 jobs só imprimem `Success`/`'federations'`; nada treina                                                      | flwr novo (instalado num venv do zero) migra p/ modo **SuperLink/deployment**: `flwr run` **submete** e retorna (assíncrono), deixa `superlink`/`superexec` zumbis | fixar `flwr==1.20.0` (reinstalar limpo: `pip uninstall -y flwr`), matar zumbis (`pkill -f flower-superlink; pkill -f flower-superexec`), apagar `rm -rf .runhome/.flwr` | host novo (`thedeep2`)                                                  |
+| `LoadClientAppError` / `ModuleNotFoundError: No module named 'scipy'`                                                                          | `scipy` é usado em `client/fedcs.py` (`cdist`) mas não está no `pyproject`                                                                                         | `pip install scipy` no venv                                                                                                                                             | host novo                                                               |
+| `[project].name "perf_eval_cs_fl" is invalid`                                                                                                  | flwr novo rejeita `_` no nome do app                                                                                                                               | usar flwr 1.20.0 (aceita `_`); ou nome com hífens                                                                                                                       | flwr ≥ nova vs 1.20.0                                                   |
+| Bateria morre no meio: `ray.exceptions.OutOfMemoryError` / `Task was killed due to the node running low on memory` (RAM do host, **não** VRAM) | RAM baixa (ex.: `thedeep` 15.5 GB); 10 `ClientAppActor` (~1.2 GB cada) + superlink (~2.4 GB) passam do teto de 95%                                                 | reduzir concorrência: `client-resources.num-gpus` 0.1→0.2 (10→5 simultâneos, em ondas; mesmo resultado, só mais lento)                                                  | `pyproject.toml` federação `gpu-sim-dl-10-1gpu` (edição local por host) |
+
+

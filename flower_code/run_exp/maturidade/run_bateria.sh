@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Bateria do artigo de MATURIDADE (docs/markdowns/proposta_artigo_maturidade.md).
 #
-# Roda, por (seed, alpha), o arco negativo->positivo do paper em CIFAR-10 nativo
-# 32x32, 10 clientes com participação total:
+# Roda, por (seed, alpha), o arco negativo->positivo do paper em CIFAR-10 ou CIFAR-100
+# nativo 32x32 (DATASET_OVERRIDE), 10 clientes com participação total:
 #
 #   B0        FedAvg full (sem poda)                → teto
 #   B1        Random prune (mesmo budget)           → baseline a bater
@@ -43,6 +43,11 @@
 # Knobs por env (sufixo _OVERRIDE porque o _common.sh já define os nomes-base):
 #   MODEL_OVERRIDE, N_ROUNDS_OVERRIDE, EPOCHS_OVERRIDE, LR_OVERRIDE, BATCH_OVERRIDE,
 #   PF_OVERRIDE, PL_OVERRIDE, SEEDS_OVERRIDE, ALPHAS_OVERRIDE, MATURITY_T_OVERRIDE.
+#   DATASET_OVERRIDE: cifar10 (default) | cifar100. Define hugginface-id, num-classes,
+#     pasta dos .pth (model/cifar100/ no CIFAR-100) e o EXP_TAG default.
+#   RANDOM_T: lista de rodadas t do B1 (default: só PRETRAIN_STATIC+2).
+#   M1_SCHEDULES: lista de agendas do M1/E1, ex. "5,45 10,50" (default: M1_PRUNE_ROUNDS).
+#   Grade completa do artigo num comando: run_exp/maturidade/run_grade_artigo.sh.
 #
 # ── Disco / Ray (/tmp cheio em máquina compartilhada) ──
 #   O Ray grava a sessão/spill em /tmp/ray por padrão. Se o /tmp estiver cheio (comum
@@ -107,7 +112,30 @@ if [ "$NO_LOG" = false ]; then
   echo ">> Logging para: $LOG_FILE"
 fi
 
-# ── Setup: CIFAR-10 nativo 32x32, 10 clientes, participação total ──
+# ── Dataset: CIFAR-10 ou CIFAR-100 (mesmo 32x32, mesma ResNet; muda o nº de classes) ──
+DATASET="${DATASET_OVERRIDE:-cifar10}"
+case "$DATASET" in
+  cifar10)
+    HF_ID="uoft-cs/cifar10"
+    NUM_CLASSES=10
+    ROOT_MODEL_DIR="./model/"
+    DEFAULT_EXP_TAG="maturidade"
+    ;;
+  cifar100)
+    HF_ID="uoft-cs/cifar100"
+    NUM_CLASSES=100
+    # Pasta própria: o .pth se chama <model>_<sel>_<agg>_<seed>.pth (sem o dataset) e
+    # tem 100 saídas; na mesma pasta sobrescreveria o do CIFAR-10.
+    ROOT_MODEL_DIR="./model/cifar100/"
+    DEFAULT_EXP_TAG="maturidade_cifar100"
+    ;;
+  *)
+    echo "ERRO: DATASET_OVERRIDE='$DATASET' inválido. Use cifar10 ou cifar100." >&2
+    exit 1
+    ;;
+esac
+
+# ── Setup: CIFAR nativo 32x32, 10 clientes, participação total ──
 # IMPORTANTE: o _common.sh define MODEL/EPOCHS/N_ROUNDS/etc. INCONDICIONALMENTE (com
 # valores do setup ShuffleNet@224). Por isso NÃO dá para sobrescrever com ${MODEL:-...}
 # (o valor do _common venceria). Usamos o sufixo _OVERRIDE (mesmo padrão de
@@ -161,17 +189,22 @@ fi
 # Poda estática de referência para B1 (Random) — mesma rodada para dar um budget
 # comparável ao ponto central da curva.
 PRETRAIN_STATIC="${PRETRAIN_STATIC:-8}"
+# B1 em várias rodadas t (curva de maturidade do Random); pretrain = t-2, como no B2.
+# shellcheck disable=SC2206
+RANDOM_T=(${RANDOM_T:-$((PRETRAIN_STATIC + 2))})
 
 # M1/E1: agenda de recompute do DC (fedcs_dynamic). pretrain pequeno + poda multi-rodada.
 M1_PRETRAIN="${M1_PRETRAIN:-2}"
 M1_PRUNE_ROUNDS="${M1_PRUNE_ROUNDS:-10,50}"
+# shellcheck disable=SC2206
+M1_SCHEDULES=(${M1_SCHEDULES:-$M1_PRUNE_ROUNDS})
 
 # Taxa adaptativa (E1).
 ADAPTIVE_COST="${ADAPTIVE_COST:-time}"
 ADAPTIVE_MIN="${ADAPTIVE_MIN:-0.7}"
 ADAPTIVE_MAX="${ADAPTIVE_MAX:-1.3}"
 
-EXP_TAG="${EXP_TAG:-maturidade}"
+EXP_TAG="${EXP_TAG:-$DEFAULT_EXP_TAG}"
 
 # Quais blocos rodar (default: todos).
 RUN_B0="${RUN_B0:-true}"
@@ -208,11 +241,13 @@ maybe_run() {
 }
 
 echo "============================================================"
-echo "  Bateria MATURIDADE — CIFAR-10 32x32 nativo, 10 clientes"
+echo "  Bateria MATURIDADE — $DATASET ($HF_ID, $NUM_CLASSES classes) 32x32 nativo, 10 clientes"
 echo "  Federation: $FED | shard $SHARD/$NSHARDS"
 echo "  Model: $MODEL $INPUT_SHAPE | rounds=$N_ROUNDS epochs=$EPOCHS batch=$BATCH_SIZE lr=$LR (cosine)"
+echo "  Model dir: $ROOT_MODEL_DIR"
 echo "  Seeds: ${SEEDS[*]} | Alphas: ${ALPHAS[*]} | pf=$PF pl=$PL"
-echo "  Maturity t: ${MATURITY_T[*]} | M1 prune-rounds: $M1_PRUNE_ROUNDS (pretrain=$M1_PRETRAIN)"
+echo "  Maturity t: ${MATURITY_T[*]} | Random t: ${RANDOM_T[*]}"
+echo "  M1/E1 schedules: ${M1_SCHEDULES[*]} (pretrain=$M1_PRETRAIN)"
 echo "  Blocos: B0=$RUN_B0 B1=$RUN_B1 MATURITY=$RUN_MATURITY M1=$RUN_M1 E1=$RUN_E1"
 echo "  Exp folder: outputs/$EXP_TAG/"
 echo "============================================================"
@@ -223,7 +258,7 @@ setup_model_and_profiles "random" "$AGG"
 setup_model_and_profiles "fedcs" "$AGG"
 setup_model_and_profiles "fedcs_dynamic" "$AGG"
 
-COMMON="num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL participants-name=\"constant\" aggregation-name=\"$AGG\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES batch-size=$BATCH_SIZE epochs=$EPOCHS learning-rate=$LR exp-tag=\"$EXP_TAG\""
+COMMON="num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL participants-name=\"constant\" aggregation-name=\"$AGG\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES hugginface-id=\"$HF_ID\" root-model-dir=\"$ROOT_MODEL_DIR\" batch-size=$BATCH_SIZE epochs=$EPOCHS learning-rate=$LR exp-tag=\"$EXP_TAG\""
 
 ADAPTIVE="adaptive-rate=true adaptive-rate-cost=\"$ADAPTIVE_COST\" adaptive-rate-min=$ADAPTIVE_MIN adaptive-rate-max=$ADAPTIVE_MAX"
 
@@ -239,8 +274,15 @@ for SEED in "${SEEDS[@]}"; do
 
     # ── B1: Random prune (baseline a bater) ──
     if [ "$RUN_B1" = true ]; then
-      maybe_run "B1 Random-prune    | seed=$SEED alpha=$ALPHA pretrain=$PRETRAIN_STATIC" \
-        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRETRAIN_STATIC adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=true budget-mode=\"off\" $COMMON"
+      for T in "${RANDOM_T[@]}"; do
+        PRE=$((T - 2))
+        if [ "$PRE" -lt 1 ]; then
+          echo ">> [skip] random t=$T exige seleção na rodada 1 (pulada); requer t>=3."
+          continue
+        fi
+        maybe_run "B1 Random-prune t=$T | seed=$SEED alpha=$ALPHA pretrain=$PRE" \
+          "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs\" pretrain-rounds=$PRE adaptive-pretrain=false beta=$BETA pf=$PF pl=$PL random-prune=true budget-mode=\"off\" $COMMON"
+      done
     fi
 
     # ── MATURITY / B2: DC estático podando em t (curva de maturidade) ──
@@ -256,17 +298,19 @@ for SEED in "${SEEDS[@]}"; do
       done
     fi
 
-    # ── M1: DC recomputado no tempo certo (fedcs_dynamic) ──
-    if [ "$RUN_M1" = true ]; then
-      maybe_run "M1 DC-recompute    | seed=$SEED alpha=$ALPHA prune=$M1_PRUNE_ROUNDS" \
-        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs_dynamic\" pretrain-rounds=$M1_PRETRAIN prune-rounds=\"$M1_PRUNE_ROUNDS\" beta=$BETA pf=$PF pl=$PL random-prune=false $COMMON"
-    fi
+    for SCHED in "${M1_SCHEDULES[@]}"; do
+      # ── M1: DC recomputado no tempo certo (fedcs_dynamic) ──
+      if [ "$RUN_M1" = true ]; then
+        maybe_run "M1 DC-recompute    | seed=$SEED alpha=$ALPHA prune=$SCHED" \
+          "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs_dynamic\" pretrain-rounds=$M1_PRETRAIN prune-rounds=\"$SCHED\" beta=$BETA pf=$PF pl=$PL random-prune=false $COMMON"
+      fi
 
-    # ── E1: M1 + taxa adaptativa por cliente ──
-    if [ "$RUN_E1" = true ]; then
-      maybe_run "E1 M1+adarate      | seed=$SEED alpha=$ALPHA prune=$M1_PRUNE_ROUNDS" \
-        "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs_dynamic\" pretrain-rounds=$M1_PRETRAIN prune-rounds=\"$M1_PRUNE_ROUNDS\" beta=$BETA pf=$PF pl=$PL random-prune=false $ADAPTIVE $COMMON"
-    fi
+      # ── E1: M1 + taxa adaptativa por cliente ──
+      if [ "$RUN_E1" = true ]; then
+        maybe_run "E1 M1+adarate      | seed=$SEED alpha=$ALPHA prune=$SCHED" \
+          "seed=$SEED dir-alpha=$ALPHA selection-name=\"fedcs_dynamic\" pretrain-rounds=$M1_PRETRAIN prune-rounds=\"$SCHED\" beta=$BETA pf=$PF pl=$PL random-prune=false $ADAPTIVE $COMMON"
+      fi
+    done
   done
 done
 
