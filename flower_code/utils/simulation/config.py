@@ -11,6 +11,8 @@ except:
 import numpy as np
 import torch
 
+from utils.fedcs.selection import DC_SCORE_MODES, RESAMPLE_MODES
+
 
 class ConfigRepository:
     def __init__(self, path):
