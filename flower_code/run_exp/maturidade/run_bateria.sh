@@ -61,120 +61,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../paper/_common.sh"
 parse_args "$@"
 
-# ── Flags próprias (não tratadas pelo parse_args do _common.sh) ──
-NO_LOG=false
-ALPHA_OVERRIDE=""
-SHARD=1
-NSHARDS=1
-_prev=""
-for arg in "$@"; do
-  case "$_prev" in
-    --alpha)   ALPHA_OVERRIDE="$arg" ;;
-    --shard)   SHARD="$arg" ;;
-    --nshards) NSHARDS="$arg" ;;
-  esac
-  case "$arg" in
-    --no-log) NO_LOG=true ;;
-  esac
-  _prev="$arg"
-done
-
-if ! [[ "$SHARD" =~ ^[0-9]+$ ]] || ! [[ "$NSHARDS" =~ ^[0-9]+$ ]] || [ "$NSHARDS" -lt 1 ] || [ "$SHARD" -lt 1 ] || [ "$SHARD" -gt "$NSHARDS" ]; then
-  echo "ERRO: --shard/--nshards inválidos (shard=$SHARD nshards=$NSHARDS). Requer 1 <= shard <= nshards." >&2
-  exit 1
-fi
-
-# ── Guarda de disco (o Ray grava em /tmp/ray por padrão) ──
-# Em servidor compartilhado o /tmp costuma estar cheio; sem espaço, o object store do
-# Ray não faz spill e a simulação degrada/trava. Falha rápido se /tmp está apertado e
-# RAY_TMPDIR não foi setado, pedindo para apontar o Ray a um disco com espaço.
-if [ "$DRY_RUN" = false ]; then
-  tmp_avail_kb=$(df -Pk /tmp 2>/dev/null | awk 'NR==2{print $4}')
-  if [ -z "${RAY_TMPDIR:-}" ] && [ "${tmp_avail_kb:-0}" -lt 20000000 ]; then
-    echo "ERRO: /tmp com ~$(( ${tmp_avail_kb:-0} / 1024 / 1024 )) GB livres e RAY_TMPDIR não setado." >&2
-    echo "      O Ray grava em /tmp/ray e degrada/trava quando o disco enche." >&2
-    echo "      Rode (no MESMO shell, antes deste script):" >&2
-    echo "        export RAY_TMPDIR=/disco/com/espaco/ray_tmp   # caminho CURTO, ex.: seu /local2" >&2
-    exit 1
-  fi
-  if [ -n "${RAY_TMPDIR:-}" ]; then
-    mkdir -p "$RAY_TMPDIR"
-    echo ">> RAY_TMPDIR=$RAY_TMPDIR (Ray temp fora de /tmp)"
-  fi
-fi
-
-# ── Logging automático (bom para sessões SSH que podem cair) ──
-if [ "$NO_LOG" = false ]; then
-  LOG_DIR="run_exp/maturidade/logs"
-  mkdir -p "$LOG_DIR"
-  LOG_FILE="$LOG_DIR/bateria_$(date +%Y%m%d_%H%M%S)_shard${SHARD}of${NSHARDS}.log"
-  exec > >(tee -a "$LOG_FILE") 2>&1
-  echo ">> Logging para: $LOG_FILE"
-fi
-
-# ── Dataset: CIFAR-10 ou CIFAR-100 (mesmo 32x32, mesma ResNet; muda o nº de classes) ──
-DATASET="${DATASET_OVERRIDE:-cifar10}"
-case "$DATASET" in
-  cifar10)
-    HF_ID="uoft-cs/cifar10"
-    NUM_CLASSES=10
-    ROOT_MODEL_DIR="./model/"
-    DEFAULT_EXP_TAG="maturidade"
-    ;;
-  cifar100)
-    HF_ID="uoft-cs/cifar100"
-    NUM_CLASSES=100
-    # Pasta própria: o .pth se chama <model>_<sel>_<agg>_<seed>.pth (sem o dataset) e
-    # tem 100 saídas; na mesma pasta sobrescreveria o do CIFAR-10.
-    ROOT_MODEL_DIR="./model/cifar100/"
-    DEFAULT_EXP_TAG="maturidade_cifar100"
-    ;;
-  *)
-    echo "ERRO: DATASET_OVERRIDE='$DATASET' inválido. Use cifar10 ou cifar100." >&2
-    exit 1
-    ;;
-esac
-
-# ── Setup: CIFAR nativo 32x32, 10 clientes, participação total ──
-# IMPORTANTE: o _common.sh define MODEL/EPOCHS/N_ROUNDS/etc. INCONDICIONALMENTE (com
-# valores do setup ShuffleNet@224). Por isso NÃO dá para sobrescrever com ${MODEL:-...}
-# (o valor do _common venceria). Usamos o sufixo _OVERRIDE (mesmo padrão de
-# SEEDS_OVERRIDE/ALPHAS_OVERRIDE) e ATRIBUÍMOS de novo aqui, vencendo o _common.
-#
-# MODEL default = simplecnn (destrava rápido, sem BatchNorm -> sem bug de batch 1).
-# Alternativa com mais teto: MODEL_OVERRIDE=resnet_cifar (ResNet-CIFAR-GN, ver factory.py).
-MODEL="${MODEL_OVERRIDE:-simplecnn}"
-INPUT_SHAPE="(3,32,32)"
-N_CLIENTS=10
-N_PART=10
-N_EVAL=10
-N_ROUNDS="${N_ROUNDS_OVERRIDE:-100}"
-EPOCHS="${EPOCHS_OVERRIDE:-5}"
-LR="${LR_OVERRIDE:-0.01}"
-# batch-size: o _common.sh usa 8 (herança do setup ShuffleNet@224). Em CIFAR 32x32 é
-# minúsculo/ineficiente; mas batch 128 com 10 clientes concorrentes e resnet_cifar base=64
-# estoura os 24 GB (OOM). 64 é o meio-termo: ~1,4 GB/cliente × 10 ≈ 14 GB (cabe), e ainda
-# ~8x menos iterações que o batch 8. Com base=32 dá pra subir (BATCH_OVERRIDE=128).
-BATCH_SIZE="${BATCH_OVERRIDE:-64}"
-AGG="fedavg"
-PF="${PF_OVERRIDE:-0.5}"
-PL="${PL_OVERRIDE:-0.1}"
-
-# Seeds e alphas (§3: seeds {1,2,3}, alpha {0.1, 1.0}).
-if [ -n "${SEEDS_OVERRIDE:-}" ]; then
-  # shellcheck disable=SC2206
-  SEEDS=(${SEEDS_OVERRIDE})
-else
-  SEEDS=(1 2 3)
-fi
-if [ -n "$ALPHA_OVERRIDE" ]; then
-  ALPHAS=("$ALPHA_OVERRIDE")
-elif [ -n "${ALPHAS_OVERRIDE:-}" ]; then
-  # shellcheck disable=SC2206
-  ALPHAS=(${ALPHAS_OVERRIDE})
-else
-  ALPHAS=(0.1 1.0)
-fi
+# Setup comum do artigo (flags, guardas, log, dataset, hiperparâmetros, shard):
+# run_exp/maturidade/_paper_setup.sh. MODEL default = simplecnn (destrava rápido, sem
+# BatchNorm -> sem bug de batch 1). Com mais teto: MODEL_OVERRIDE=resnet_cifar.
+LOG_DIR="run_exp/maturidade/logs"
+LOG_PREFIX="bateria"
+EXP_TAG_BASE="maturidade"
+DEFAULT_MODEL="simplecnn"
+DEFAULT_SEEDS="1 2 3"
+DEFAULT_ALPHAS="0.1 1.0"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/_paper_setup.sh"
 
 # Curva de maturidade: rodadas-alvo de poda t (poda estática 1x em t). pretrain=t-2
 # (a seleção acontece em t-1 e a poda em t). t<3 exigiria seleção na rodada 1, que é
@@ -204,41 +101,12 @@ ADAPTIVE_COST="${ADAPTIVE_COST:-time}"
 ADAPTIVE_MIN="${ADAPTIVE_MIN:-0.7}"
 ADAPTIVE_MAX="${ADAPTIVE_MAX:-1.3}"
 
-EXP_TAG="${EXP_TAG:-$DEFAULT_EXP_TAG}"
-
 # Quais blocos rodar (default: todos).
 RUN_B0="${RUN_B0:-true}"
 RUN_B1="${RUN_B1:-true}"
 RUN_MATURITY="${RUN_MATURITY:-true}"
 RUN_M1="${RUN_M1:-true}"
 RUN_E1="${RUN_E1:-true}"
-
-# Guarda: a federação precisa ter num-supernodes=10 (participação total).
-case "$FED" in
-  *-100|gpu-sim-dl|gpu-sim-dl-16|gpu-sim-dl-17|gpu-sim-dl-02|gpu-sim-dl-24|gpu-sim-lrc|local-simulation-100)
-    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    echo "  ATENÇÃO: '$FED' tem 100 supernodes, mas este setup usa 10 clientes."
-    echo "  Use 'gpu-sim-dl-10' (3 GPU) ou 'gpu-sim-dl-10-1gpu' (1 GPU). Abortando."
-    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    exit 1
-    ;;
-esac
-
-beta_for_alpha() {
-  if [ "${1:-}" = "0.1" ]; then echo "0.65"; else echo "0.5"; fi
-}
-
-# ── Sharding por índice de job (round-robin entre máquinas) ──
-JOB_INDEX=-1
-maybe_run() {
-  # $1 = label, $2 = run-config. Só executa se o job pertence a este shard.
-  JOB_INDEX=$((JOB_INDEX + 1))
-  local owner=$(( (JOB_INDEX % NSHARDS) + 1 ))
-  if [ "$owner" -ne "$SHARD" ]; then
-    return
-  fi
-  run_single "$1" "$2"
-}
 
 echo "============================================================"
 echo "  Bateria MATURIDADE — $DATASET ($HF_ID, $NUM_CLASSES classes) 32x32 nativo, 10 clientes"
@@ -257,8 +125,6 @@ echo ""
 setup_model_and_profiles "random" "$AGG"
 setup_model_and_profiles "fedcs" "$AGG"
 setup_model_and_profiles "fedcs_dynamic" "$AGG"
-
-COMMON="num-clients=$N_CLIENTS num-rounds=$N_ROUNDS num-participants=$N_PART num-evaluators=$N_EVAL participants-name=\"constant\" aggregation-name=\"$AGG\" model-name=\"$MODEL\" input-shape=\"$INPUT_SHAPE\" num-classes=$NUM_CLASSES hugginface-id=\"$HF_ID\" root-model-dir=\"$ROOT_MODEL_DIR\" batch-size=$BATCH_SIZE epochs=$EPOCHS learning-rate=$LR exp-tag=\"$EXP_TAG\""
 
 ADAPTIVE="adaptive-rate=true adaptive-rate-cost=\"$ADAPTIVE_COST\" adaptive-rate-min=$ADAPTIVE_MIN adaptive-rate-max=$ADAPTIVE_MAX"
 
