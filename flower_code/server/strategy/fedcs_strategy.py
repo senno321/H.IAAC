@@ -18,10 +18,14 @@ from flwr.server.client_proxy import ClientProxy
 
 # Estratégia base
 from server.strategy.fedavg_random_constant import FedAvgRandomConstant
+from utils.fedcs.selection import DC_SCORE_MODES, RESAMPLE_MODES, parse_pf_schedule
 
 log = logging.getLogger(__name__)
 
 class FedCSRandomConstant(FedAvgRandomConstant):
+    # Poda estática = 1 evento; o fedcs_dynamic sobrescreve e valida contra prune-rounds.
+    _SINGLE_PRUNE_EVENT = True
+
     def __init__(
         self,
         pretrain_rounds: int = 5,
@@ -44,6 +48,10 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         adaptive_rate_cap: float = 0.95,
         prune_floor_abs: int = 1,
         prune_floor_frac: float = 0.0,
+        dc_score_mode: str = "abs",
+        prune_pf_schedule=None,
+        resample_mode: str = "off",
+        resample_temperature: float = 0.25,
         **kwargs,
     ):
         cache_path = ".cache_fedcs"
@@ -74,6 +82,26 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         # Per-class floor (N8): mínimo de amostras mantidas por classe na poda.
         self.prune_floor_abs = int(prune_floor_abs)
         self.prune_floor_frac = float(prune_floor_frac)
+        # Ideias de acurácia (docs/markdowns/ideias_acuracia_mesma_energia.md).
+        # Defaults = comportamento original.
+        self.dc_score_mode = str(dc_score_mode).strip().lower()
+        if self.dc_score_mode not in DC_SCORE_MODES:
+            raise ValueError(f"dc-score-mode={dc_score_mode!r}; use um de {DC_SCORE_MODES}")
+        self.prune_pf_schedule: List[float] = parse_pf_schedule(prune_pf_schedule)
+        self.resample_mode = str(resample_mode).strip().lower()
+        if self.resample_mode not in RESAMPLE_MODES:
+            raise ValueError(f"resample-mode={resample_mode!r}; use um de {RESAMPLE_MODES}")
+        self.resample_temperature = float(resample_temperature)
+        if self.resample_mode == "weighted" and self.resample_temperature <= 0:
+            raise ValueError(f"resample-temperature deve ser > 0 (recebido {resample_temperature})")
+        if self.prune_pf_schedule and self.budget_mode != "off":
+            raise ValueError("prune-pf-schedule não combina com budget-mode (o budget substitui pf/pl)")
+        if self._SINGLE_PRUNE_EVENT:
+            self._validate_pf_schedule(1)
+        # Energia de inferência do método (extração de features) da rodada em curso;
+        # setada em aggregate_fit antes do save_round_system_metrics.
+        self._round_phase: Optional[str] = None
+        self._round_inference_mJ: Optional[float] = 0.0
         self._transition_round: Optional[int] = None
 
         self.global_class_centers = None
@@ -105,6 +133,42 @@ class FedCSRandomConstant(FedAvgRandomConstant):
                 self.adaptive_rate_cost, self.adaptive_rate_min, self.adaptive_rate_max,
                 self.adaptive_rate_cap,
             )
+
+        if self.dc_score_mode != "abs" or self.prune_pf_schedule or self.resample_mode != "off":
+            log.info(
+                "FedCS accuracy ideas: dc_score_mode=%s, prune_pf_schedule=%s, resample=%s (T=%.3f)",
+                self.dc_score_mode, self.prune_pf_schedule or "off", self.resample_mode,
+                self.resample_temperature,
+            )
+
+    def _validate_pf_schedule(self, num_prune_events: int) -> None:
+        """Exige um pf por evento de poda quando o cronograma está ativo.
+
+        Args:
+            num_prune_events: Nº de eventos de poda do run (1 no estático).
+
+        Raises:
+            ValueError: Se o cronograma não tem exatamente ``num_prune_events`` valores.
+        """
+        if self.prune_pf_schedule and len(self.prune_pf_schedule) != num_prune_events:
+            raise ValueError(
+                f"prune-pf-schedule tem {len(self.prune_pf_schedule)} valores, mas o run tem "
+                f"{num_prune_events} evento(s) de poda; use um pf por evento"
+            )
+
+    def _pf_for_event(self, prune_event_id: int) -> float:
+        """pf do evento de poda ``prune_event_id`` (1-based); sem cronograma = ``self.pf``.
+
+        Args:
+            prune_event_id: Índice 1-based do evento de poda.
+
+        Returns:
+            Taxa de poda das classes grandes para este evento.
+        """
+        if not self.prune_pf_schedule:
+            return self.pf
+        idx = min(max(prune_event_id, 1), len(self.prune_pf_schedule)) - 1
+        return self.prune_pf_schedule[idx]
 
     def _get_phase(self, server_round: int) -> str:
         if not self.adaptive_pretrain:
@@ -250,11 +314,23 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         if self.budget_mode in (None, "", "off"):
             rate_tag = f"_pf{self.pf}_pl{self.pl}"
 
+        # Ideias de acurácia: só entram no nome quando fora do default, então os runs
+        # antigos mantêm o mesmo diretório.
+        score_tag = f"_score{self.dc_score_mode}" if self.dc_score_mode != "abs" else ""
+        resample_tag = ""
+        if self.resample_mode == "weighted":
+            resample_tag = f"_rsweightedT{self.resample_temperature}"
+        elif self.resample_mode == "uniform":
+            resample_tag = "_rsuniform"
+        pfsched_tag = ""
+        if self.prune_pf_schedule:
+            pfsched_tag = "_pfsched" + "_".join(str(p) for p in self.prune_pf_schedule)
+
         output_dir = os.path.join(
             "outputs",
             current_date,
             f"{aggregation_name}_{selection_name}_{participants_name}_{self.num_participants}_"
-            f"{pretrain_label}{prune_mode_tag}{budget_tag}{adaptive_tag}{floor_tag}{rate_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
+            f"{pretrain_label}{prune_mode_tag}{score_tag}{resample_tag}{budget_tag}{adaptive_tag}{floor_tag}{rate_tag}{pfsched_tag}{prune_tag}_dataset_{dataset_id}_dir_{dir_alpha}_seed_{seed}",
         )
         os.makedirs(output_dir, exist_ok=True)
         self.model_performance_path = os.path.join(output_dir, "model_performance.json")
@@ -269,6 +345,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         log.info(f"FedCS Round {server_round}: Entering phase '{phase}'")
 
         target_prune_event_id = self.prune_event_id + (1 if phase == "pruning" else 0)
+        event_pf = self._pf_for_event(target_prune_event_id)
 
         # Mantém a configuração base do treino (inclui server_round, epochs, lr, etc.)
         base_fit_config: Dict[str, Scalar] = {}
@@ -283,11 +360,15 @@ class FedCSRandomConstant(FedAvgRandomConstant):
             "prune_event_id": target_prune_event_id,
             # Passamos os hiperparâmetros para o cliente usar na poda
             "beta": self.beta,
-            "pf": self.pf,
+            "pf": event_pf,
             "pl": self.pl,
             "random_prune": self.random_prune,
             "prune_floor_abs": self.prune_floor_abs,
             "prune_floor_frac": self.prune_floor_frac,
+            "dc_score_mode": self.dc_score_mode,
+            "resample_mode": self.resample_mode,
+            "resample_temperature": self.resample_temperature,
+            "resample_seed": int(self.context.run_config.get("seed", 0)),
         }
 
         # Na fase de Poda, enviamos os Centros Globais
@@ -304,7 +385,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         # Adaptive rate: per-client (pf_i, pl_i) scaled by capacity; double pruning stays on.
         if phase == "pruning" and self.adaptive_rate:
             epochs = int(base_fit_config.get("epochs", self.context.run_config.get("epochs", 1)))
-            rates = self._compute_adaptive_rates(epochs)
+            rates = self._compute_adaptive_rates(epochs, event_pf)
             if rates:
                 config["adaptive_rates"] = pickle.dumps(rates)
 
@@ -380,6 +461,59 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         except Exception as e:
             log.error("Gate 2 probe: failed to write %s: %s", gate2_path, e)
 
+    def _inference_energy_mJ(self, results) -> Optional[float]:
+        """Energia da extração de features do método: 1 forward sobre o full-data por cliente.
+
+        Usa ``evaluation_mJ`` (por amostra) do perfil e ``n_full`` das métricas do fit.
+
+        Args:
+            results: Lista de (ClientProxy, FitRes) da rodada de seleção ou poda.
+
+        Returns:
+            Soma em mJ, ou None se faltar ``evaluation_mJ`` no perfil ou ``n_full`` na métrica
+            (profiles.json antigo; regenere com gen_sim_profile.py).
+        """
+        total = 0.0
+        for _client_proxy, fit_res in results:
+            m = fit_res.metrics or {}
+            cid = m.get("cid")
+            profile = self.profiles.get(int(cid)) if cid is not None else None
+            if profile is None or "evaluation_mJ" not in profile or "n_full" not in m:
+                log.warning("FedCS energy: missing evaluation_mJ/n_full for cid=%s; inference_mJ=None.", cid)
+                return None
+            total += float(profile["evaluation_mJ"]) * int(m["n_full"])
+        return total
+
+    def save_round_system_metrics(self, cids_joules_consumption, selected_cids_training_time,
+                                  max_round_training_time, server_round):
+        """Grava as métricas de sistema da rodada + campos de energia corrigida.
+
+        ``total_mJ`` fica como sempre (num_examples x epochs x training_mJ, inclusive na
+        rodada de seleção, que não treina). Os campos novos ao lado dele:
+
+        * ``phase``: fase FedCS da rodada.
+        * ``train_mJ``: treino de fato (0 na seleção).
+        * ``inference_mJ``: extração de features do método (seleção e poda).
+        * ``total_mJ_corrected``: ``train_mJ + inference_mJ`` (None se inference_mJ é None).
+
+        Args:
+            cids_joules_consumption: mJ de treino por cid (modelo legado).
+            selected_cids_training_time: Tempo de treino por cid.
+            max_round_training_time: Maior tempo de treino da rodada.
+            server_round: Rodada do servidor.
+        """
+        super().save_round_system_metrics(cids_joules_consumption, selected_cids_training_time,
+                                          max_round_training_time, server_round)
+        record = self.system_metrics_to_save[server_round]
+        train_mJ = 0.0 if self._round_phase == "selection" else float(record["total_mJ"])
+        inference_mJ = self._round_inference_mJ
+        record["phase"] = self._round_phase
+        record["train_mJ"] = train_mJ
+        record["inference_mJ"] = inference_mJ
+        record["total_mJ_corrected"] = None if inference_mJ is None else train_mJ + inference_mJ
+        with open(self.system_performance_path, "w") as json_file:
+            json.dump(self.system_metrics_to_save, json_file, indent=2)
+
     def _compute_capacity_targets(self, epochs: int) -> Dict[int, int]:
         """Derive the per-client target sample count K_i from the round budget.
 
@@ -436,8 +570,10 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         )
         return targets
 
-    def _compute_adaptive_rates(self, epochs: int) -> Dict[int, Tuple[float, float]]:
+    def _compute_adaptive_rates(self, epochs: int, pf: Optional[float] = None) -> Dict[int, Tuple[float, float]]:
         """Per-client (pf_i, pl_i) scaled by capacity, keeping the double-pruning structure.
+
+        ``pf`` is this prune event's base pf (prune-pf-schedule); None = ``self.pf``.
 
         Ranks participating clients by their FULL-data cost c_i = cost_per_sample_i * n_i
         (time or energy). The slowest/heaviest client gets the max multiplier, the
@@ -450,6 +586,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         all); only the intensity adapts to the device profile.
         """
         cost_key = "training_mJ" if self.adaptive_rate_cost == "energy" else "training_ms"
+        base_pf = self.pf if pf is None else float(pf)
 
         full_costs: Dict[int, float] = {}
         for cid, n_i in self.client_dataset_sizes.items():
@@ -469,7 +606,7 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         for idx, (cid, _cost) in enumerate(ordered):
             rank = idx / (n - 1) if n > 1 else 0.5
             m_i = self.adaptive_rate_min + (self.adaptive_rate_max - self.adaptive_rate_min) * rank
-            pf_i = float(min(self.adaptive_rate_cap, max(0.0, m_i * self.pf)))
+            pf_i = float(min(self.adaptive_rate_cap, max(0.0, m_i * base_pf)))
             pl_i = float(min(self.adaptive_rate_cap, max(0.0, m_i * self.pl)))
             rates[cid] = (pf_i, pl_i)
 
@@ -488,6 +625,10 @@ class FedCSRandomConstant(FedAvgRandomConstant):
         failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         phase = self._get_phase(server_round)
+        self._round_phase = phase
+        self._round_inference_mJ = (
+            self._inference_energy_mJ(results) if phase in ("selection", "pruning") else 0.0
+        )
         
         # Fase de Seleção: Agrega Centros de Classe
         if phase == "selection":

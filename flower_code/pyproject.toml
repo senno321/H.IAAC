@@ -154,6 +154,20 @@ adaptive-rate-cap = 0.95
 prune-floor-abs = 1
 prune-floor-frac = 0.0
 
+# Ideias de acurácia com a mesma energia (docs/markdowns/ideias_acuracia_mesma_energia.md).
+# Defaults reproduzem o FedCS original. Script: run_exp/ideias/run_triagem.sh.
+# Ideia 4 — escore da poda: "abs" (|margem|, paper) | "signed" (remove só os fáceis,
+# mantém os do lado errado) | "signed_drop_wrong" (remove primeiro os do lado errado).
+dc-score-mode = "abs"
+# Ideia 2 — pf por evento de poda, ex. "0.3,0.65" (um valor por prune-rounds no
+# fedcs_dynamic; 1 valor no fedcs). Vazio = usa pf fixo. Não combina com budget-mode.
+prune-pf-schedule = ""
+# Ideia 1 — sorteio por rodada dentro de cada classe (mesma cota/tamanho do coreset):
+# "off" (coreset fixo) | "weighted" (peso exp(-rank/T) pelo escore) | "uniform" (controle).
+resample-mode = "off"
+# T do "weighted": menor = mais perto do coreset fixo; maior = mais perto do uniforme.
+resample-temperature = 0.25
+
 [tool.flwr.federations]
 default = "local-simulation"
 

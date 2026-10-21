@@ -51,6 +51,24 @@ def _parse_prune_rounds(value) -> List[int]:
     return [int(token.strip()) for token in text.split(",") if token.strip()]
 
 
+def _accuracy_idea_kwargs(context: Context) -> dict:
+    """Knobs das ideias de acurácia (fedcs e fedcs_dynamic); defaults = FedCS original.
+
+    Args:
+        context: Context do Flower com o run_config já preprocessado.
+
+    Returns:
+        kwargs para FedCSRandomConstant / FedCSDynamicRandomConstant.
+    """
+    rc = context.run_config
+    return {
+        "dc_score_mode": str(rc.get("dc-score-mode", "abs")),
+        "prune_pf_schedule": rc.get("prune-pf-schedule", ""),
+        "resample_mode": str(rc.get("resample-mode", "off")),
+        "resample_temperature": float(rc.get("resample-temperature", 0.25)),
+    }
+
+
 def config_preprocess_validation(context: Context):
     cfg = context.run_config
     ConfigRepository.preprocess_app_config(cfg)
@@ -287,6 +305,7 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     adaptive_rate_cap=adaptive_rate_cap,
                     prune_floor_abs=prune_floor_abs,
                     prune_floor_frac=prune_floor_frac,
+                    **_accuracy_idea_kwargs(context),
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,
@@ -333,6 +352,7 @@ def get_strategy(context: Context, initial_parameters: Parameters, fit_metrics_a
                     adaptive_rate_cap=adaptive_rate_cap,
                     prune_floor_abs=prune_floor_abs,
                     prune_floor_frac=prune_floor_frac,
+                    **_accuracy_idea_kwargs(context),
                     num_clients=num_clients,
                     profiles=profiles,
                     num_participants=num_participants,

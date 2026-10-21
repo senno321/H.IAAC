@@ -81,6 +81,10 @@ class ConfigRepository:
         cfg.setdefault("pretrain-tau", 0.02)
         cfg.setdefault("pretrain-window", 10)
         cfg.setdefault("random-prune", False)
+        cfg.setdefault("dc-score-mode", "abs")
+        cfg.setdefault("prune-pf-schedule", "")
+        cfg.setdefault("resample-mode", "off")
+        cfg.setdefault("resample-temperature", 0.25)
 
         # Processing
         # global
@@ -141,6 +145,9 @@ class ConfigRepository:
                 cfg["prune-rounds"] = [int(x) for x in cfg["prune-rounds"]]
             else:
                 cfg["prune-rounds"] = [int(cfg["prune-rounds"])]
+        cfg["dc-score-mode"] = str(cfg["dc-score-mode"]).strip().lower()
+        cfg["resample-mode"] = str(cfg["resample-mode"]).strip().lower()
+        cfg["resample-temperature"] = float(cfg["resample-temperature"])
 
         return cfg
 
@@ -165,6 +172,13 @@ class ConfigRepository:
             for prune_round in prune_rounds:
                 if int(prune_round) <= pretrain_rounds:
                     errors.append(f"prune-rounds values must be > pretrain-rounds ({pretrain_rounds})")
+
+        if cfg.get("dc-score-mode", "abs") not in DC_SCORE_MODES:
+            errors.append(f"dc-score-mode must be one of {DC_SCORE_MODES}")
+        if cfg.get("resample-mode", "off") not in RESAMPLE_MODES:
+            errors.append(f"resample-mode must be one of {RESAMPLE_MODES}")
+        if cfg.get("resample-mode") == "weighted" and float(cfg.get("resample-temperature", 0.25)) <= 0:
+            errors.append("resample-temperature > 0 when resample-mode=weighted")
 
         if errors:
             raise ValueError("Config errors:\n" + "\n".join(errors))

@@ -80,6 +80,9 @@ def create_profiles(num_clients: int, seed: int, devices_profile_path: str, pref
             "training_ms": profile["training_ms"],
             "training_mJ": profile["training_mJ"],
         }
+        # Forward por amostra: energia da extração de features do FedCS (inference_mJ).
+        if "evaluation_mJ" in profile:
+            profiles[idx]["evaluation_mJ"] = profile["evaluation_mJ"]
         profiles[idx]["flwr_cid"] = -1
         profiles[idx]["training_round_time"] = -1
 

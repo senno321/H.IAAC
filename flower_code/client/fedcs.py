@@ -10,6 +10,7 @@ from scipy.spatial.distance import cdist
 
 from client.base import BaseClient 
 from utils.dataset.config import DatasetConfig
+from utils.fedcs.selection import build_resample_state, dc_scores_from_distances, draw_resample
 from utils.model.manipulation import set_weights 
 
 log = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ class FedCSClient(BaseClient):
         self.cache_dir = ".cache_fedcs"
         os.makedirs(self.cache_dir, exist_ok=True)
         self.prune_state_file = os.path.join(self.cache_dir, f"client_{cid}_prune_state.pkl")
+        # Ideia 1 (sorteio por rodada): pools/probabilidades/cotas por classe do último
+        # evento de poda. O cliente é recriado a cada rodada, então o estado vive em disco.
+        self.resample_state_file = os.path.join(self.cache_dir, f"client_{cid}_resample_state.pkl")
 
         # Dataset ORIGINAL (full-data deste cliente), capturado ANTES de qualquer poda.
         # Recompute do DC (poda dinâmica) precisa re-selecionar a partir do full-data;
@@ -38,6 +42,9 @@ class FedCSClient(BaseClient):
         # Gate 2 probe do último evento de poda (nn_center_acc/sep_ratio). Preenchido
         # em _prune_dataset e devolvido pelo fit() para o servidor persistir em JSON.
         self._last_probe = None
+        # (labels, dc_scores) do último _prune_dataset, no espaço do dataset original.
+        # Base do estado do sorteio por rodada (Ideia 1).
+        self._last_scores = None
 
         # Tenta carregar o estado podado AUTOMATICAMENTE ao inicializar
         # Se este cliente já foi podado em rodadas anteriores, recuperamos o estado aqui
@@ -133,6 +140,9 @@ class FedCSClient(BaseClient):
             # (b) key the capacity-budget target K_i by cid.
             metrics["cid"] = self.cid
             metrics["flwr_cid"] = self.flwr_cid
+            # Tamanho do full-data: a extração de features é 1 forward sobre ele (energia
+            # de inferência do método, ver FedCSRandomConstant._inference_energy_mJ).
+            metrics["n_full"] = len(self.original_dataset)
 
             # Retorna pesos inalterados, contagem e métricas
             return parameters, len(self.dataloader.dataset), metrics
@@ -187,18 +197,28 @@ class FedCSClient(BaseClient):
             floor_abs = int(config.get("prune_floor_abs", 1))
             floor_frac = float(config.get("prune_floor_frac", 0.0))
 
+            score_mode = str(config.get("dc_score_mode", "abs"))
+            resample_mode = str(config.get("resample_mode", "off"))
+
             global_centers = pickle.loads(config["global_centers"])
             # Reseta o probe para não reaproveitar o de um evento anterior caso este
             # não consiga computá-lo (ex.: features vazias).
             self._last_probe = None
+            self._last_scores = None
             self._prune_dataset(
                 global_centers, prune_event_id=prune_event_id,
                 beta=beta, pf=pf, pl=pl, random_prune=random_prune,
                 target_keep=target_keep,
                 floor_abs=floor_abs, floor_frac=floor_frac,
+                score_mode=score_mode,
             )
+            if resample_mode != "off":
+                self._save_resample_state(
+                    resample_mode, float(config.get("resample_temperature", 0.25)), prune_event_id
+                )
 
             weights, num_examples, metrics = super().fit(parameters, config)
+            metrics["n_full"] = len(self.original_dataset)
             # Anexa o Gate 2 probe às métricas do fit para o servidor persistir em JSON.
             if self._last_probe is not None:
                 for k, v in self._last_probe.items():
@@ -207,10 +227,52 @@ class FedCSClient(BaseClient):
 
         # --- FASE 4: Fine-Tuning ---
         elif phase == "fine_tuning":
-            # O dataloader correto já foi carregado no __init__ se o cache existir
+            # O dataloader correto já foi carregado no __init__ se o cache existir.
+            # Com sorteio por rodada (Ideia 1), troca pelo subset sorteado desta rodada.
+            if str(config.get("resample_mode", "off")) != "off":
+                self._apply_resample(config)
             return super().fit(parameters, config)
             
         return super().fit(parameters, config)
+
+    def _save_resample_state(self, mode: str, temperature: float, prune_event_id: int) -> None:
+        """Grava pools/probabilidades/cotas por classe do coreset recém-podado (Ideia 1).
+
+        Args:
+            mode: ``"weighted"`` ou ``"uniform"``.
+            temperature: T do peso exp(-rank/T) (só ``"weighted"``).
+            prune_event_id: Evento de poda que originou o estado.
+        """
+        if self._last_scores is None or not isinstance(self.dataloader.dataset, Subset):
+            log.error(f"Client {self.cid}: resample={mode} but pruning produced no coreset; keeping it fixed.")
+            return
+        labels, dc_scores = self._last_scores
+        state = build_resample_state(labels, self.dataloader.dataset.indices, dc_scores, mode, temperature)
+        with open(self.resample_state_file, "wb") as f:
+            pickle.dump({"event_id": prune_event_id, "mode": mode, "temperature": temperature, "state": state}, f)
+
+    def _apply_resample(self, config) -> None:
+        """Sorteia o subset desta rodada e recria o dataloader (Ideia 1).
+
+        Semente = (seed do run, cid, rodada): reprodutível e diferente a cada rodada. O
+        ``np.random`` global não serve: ``set_seed`` o re-semeia igual em toda rodada.
+
+        Args:
+            config: Config do fit (``resample_seed``, ``current_round``).
+        """
+        if not os.path.exists(self.resample_state_file):
+            log.error(f"Client {self.cid}: resample enabled but {self.resample_state_file} missing; keeping fixed coreset.")
+            return
+        with open(self.resample_state_file, "rb") as f:
+            payload = pickle.load(f)
+        server_round = int(config.get("current_round", 0))
+        rng = np.random.default_rng([int(config.get("resample_seed", 0)), int(self.cid), server_round])
+        drawn = draw_resample(payload["state"], rng)
+        self._recreate_dataloader(drawn)
+        print(
+            f" >>> [FedCS][resample] client {self.cid} round {server_round}: {len(drawn)} samples "
+            f"(mode={payload['mode']}, T={payload['temperature']}, event={payload['event_id']})"
+        )
 
     def _get_features_and_labels(self, dataset=None):
         """
@@ -358,9 +420,14 @@ class FedCSClient(BaseClient):
         target_keep: int = None,
         floor_abs: int = 1,
         floor_frac: float = 0.0,
+        score_mode: str = "abs",
     ):
         """
         Paper-faithful double pruning (Algorithm 1 from FedCS, CVPR 2025).
+
+        ``score_mode`` (Ideia 4) troca só o escore de ranking; a estrutura da poda dupla
+        é a mesma. "abs" = |d_min - d_correct| (paper); "signed"/"signed_drop_wrong" em
+        utils/fedcs/selection.py::dc_scores_from_distances.
 
         Phase 1: Pool ALL samples from large-capacity classes (n_k > beta * n_kmax),
                  rank them cross-class by DC score, and remove the top pf fraction
@@ -382,7 +449,7 @@ class FedCSClient(BaseClient):
         if len(features) == 0:
             return
 
-        log.info(f"FedCS Pruning Params: beta={beta}, pf={pf}, pl={pl}")
+        log.info(f"FedCS Pruning Params: beta={beta}, pf={pf}, pl={pl}, score_mode={score_mode}")
 
         classes_global = sorted(list(global_centers.keys()))
         if not classes_global:
@@ -399,7 +466,9 @@ class FedCSClient(BaseClient):
         label_indices = np.array([class_to_idx.get(int(l), -1) for l in labels])
 
         valid_mask = label_indices >= 0
-        dc_scores = np.full(n_samples, 9999.0)
+        # Classe sem centro global => removida primeiro. 9999 vence |m| (abs); nos modos
+        # com sinal o escore pode passar disso, então usa +inf.
+        dc_scores = np.full(n_samples, 9999.0 if score_mode == "abs" else np.inf)
 
         if valid_mask.any():
             valid_idx = np.where(valid_mask)[0]
@@ -411,7 +480,7 @@ class FedCSClient(BaseClient):
             dists_masked[np.arange(len(valid_idx)), vi_labels] = np.inf
             d_min = dists_masked.min(axis=1)
 
-            dc_scores[valid_idx] = np.abs(d_min - d_correct)
+            dc_scores[valid_idx] = dc_scores_from_distances(d_correct, d_min, score_mode)
 
             # Pretrain probe (Gate 2): are the features discriminative enough for the DC
             # criterion to be meaningful? nn_center_acc = fraction of samples whose OWN
@@ -438,6 +507,8 @@ class FedCSClient(BaseClient):
                 "n_classes": int(n_classes),
                 "prune_event_id": int(prune_event_id),
             }
+
+        self._last_scores = (labels, dc_scores)
 
         # --- Capacity-budget pruning (FedCore-style): keep exactly target_keep samples ---
         # The budget (server-side) decides HOW MANY; the DC score decides WHICH ones.
@@ -537,28 +608,14 @@ class FedCSClient(BaseClient):
             indices_to_keep, labels, dc_scores, floor_abs, floor_frac
         )
 
-        # --- Persistence: save to disk ---
-        try:
-            payload = {
-                "event_id": prune_event_id,
-                "indices": indices_to_keep,
-            }
-            with open(self.prune_state_file, "wb") as f:
-                pickle.dump(payload, f)
-            log.info(
-                f"Client {self.cid}: Saved pruning state to {self.prune_state_file} "
-                f"(event_id={prune_event_id})"
-            )
-        except Exception as e:
-            log.error(f"Client {self.cid}: Failed to save pruning indices: {e}")
-
-        self._recreate_dataloader(indices_to_keep)
-        self.is_pruned = True
-        self.last_prune_event_id = prune_event_id
+        indices_to_keep = self._persist_and_apply_keep(indices_to_keep, prune_event_id)
 
         n_phase1 = len(phase1_remove)
         n_phase2 = len(phase2_remove)
-        mode = "RANDOM" if random_prune else "DC"
+        if random_prune:
+            mode = "RANDOM"
+        else:
+            mode = "DC" if score_mode == "abs" else f"DC:{score_mode}"
         print(
             f" >>> [FedCS] Double pruning [{mode}]: {len(features)} -> {len(indices_to_keep)} samples "
             f"(phase1 removed {n_phase1} from large classes, phase2 removed {n_phase2} from remaining, "

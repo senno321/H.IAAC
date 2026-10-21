@@ -7,6 +7,8 @@ log = logging.getLogger(__name__)
 
 
 class FedCSDynamicRandomConstant(FedCSRandomConstant):
+    _SINGLE_PRUNE_EVENT = False
+
     def __init__(
         self,
         prune_rounds: Iterable[int],
@@ -25,6 +27,8 @@ class FedCSDynamicRandomConstant(FedCSRandomConstant):
                 )
 
         self.prune_rounds: List[int] = rounds
+        # prune-pf-schedule (Ideia 2): um pf por evento, na ordem de prune_rounds.
+        self._validate_pf_schedule(len(self.prune_rounds))
         self.selection_rounds = {r - 1 for r in self.prune_rounds}
 
         overlap = self.selection_rounds.intersection(set(self.prune_rounds))
