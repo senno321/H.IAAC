@@ -1,0 +1,1002 @@
+{
+  "2": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "3": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "4": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "5": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "6": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "7": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "8": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "9": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "10": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "11": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "12": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "13": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "14": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "15": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "16": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "17": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "18": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "pretrain",
+    "train_mJ": 1371220880.18281,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 1371220880.18281
+  },
+  "19": {
+    "total_mJ": 1371220880.18281,
+    "total_training_ms": 111607382.312195,
+    "max_training_round_ms": 36688459.03164,
+    "num_selected_clients": 10,
+    "phase": "selection",
+    "train_mJ": 0.0,
+    "inference_mJ": 88745053.30525301,
+    "total_mJ_corrected": 88745053.30525301
+  },
+  "20": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "pruning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 88745053.305253,
+    "total_mJ_corrected": 941264279.9604931
+  },
+  "21": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "22": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "23": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "24": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "25": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "26": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "27": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "28": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "29": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "30": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "31": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "32": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "33": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "34": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "35": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "36": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "37": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "38": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "39": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "40": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "41": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "42": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "43": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "44": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "45": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "46": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "47": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "48": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "49": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "50": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "51": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "52": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "53": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "54": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "55": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "56": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "57": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "58": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "59": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "60": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "61": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "62": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "63": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "64": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "65": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "66": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "67": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "68": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "69": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "70": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "71": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "72": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "73": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "74": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "75": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "76": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "77": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "78": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "79": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "80": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "81": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "82": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "83": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "84": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "85": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "86": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "87": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "88": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "89": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "90": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "91": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "92": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "93": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "94": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "95": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "96": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "97": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "98": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "99": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "100": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  },
+  "101": {
+    "total_mJ": 852519226.65524,
+    "total_training_ms": 69612716.74885,
+    "max_training_round_ms": 24030576.93348,
+    "num_selected_clients": 10,
+    "phase": "fine_tuning",
+    "train_mJ": 852519226.65524,
+    "inference_mJ": 0.0,
+    "total_mJ_corrected": 852519226.65524
+  }
+}
